@@ -1,0 +1,12 @@
+{
+    "files.associations": {
+        "process.h": "c",
+        "vaddr.h": "c",
+        "*.tcc": "c",
+        "fstream": "c",
+        "syscall.h": "c",
+        "thread.h": "c",
+        "shutdown.h": "c",
+        "file.h": "c"
+    }
+}

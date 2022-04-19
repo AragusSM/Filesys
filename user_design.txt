@@ -1,0 +1,397 @@
+﻿                     +--------------------------+
+                     |           CS 439         |
+                     | PROJECT 2: USER PROGRAMS |
+                     |      DESIGN DOCUMENT     |
+                     +--------------------------+
+
+
+For this design document, please *each* submit the header, but you do not need
+to fill out the questions.  We will cover all questions (in content, if not in
+form) in the interview.
+
+When you have completed the header, submit it to the Canvas assignment
+Project 2 Design and Documentation.  ***Your submission must be a text file and
+each line must not extend past 80 characters.  (Note that rtf files are NOT text
+files.)
+
+
+---- Name ----
+
+>> Fill your name, UT EID, CS login, email address, and unique number:
+
+Name: Joel Setiawan Chong
+EID: jas24943
+CS login: csanders
+Email: JoelSetiawan@utexas.edu
+Unique Number: 51375
+
+Slip days used on this project: 0
+
+
+---- GROUP ----
+
+>> Fill the names, UT EIDs, CS logins, email addresses, and unique numbers
+>> of your group members.  Also fill in each person's ranking on the 
+>> partner evaluation scale, as determined by you.
+
+Name:
+EID:
+CS login:
+Email:
+Unique Number:
+
+Name:
+EID:
+CS login:
+Email:
+Unique Number:
+
+Name:
+EID:
+CS login:
+Email:
+Unique Number:
+
+
+---- PRELIMINARIES ----
+
+
+>> If you have any preliminary comments on your submission, notes for the
+>> TAs, or extra credit, please give them here.
+
+
+>> Please cite any offline or online sources you consulted while
+>> preparing your submission, other than the Pintos documentation, course
+>> text, lecture notes, and course staff.
+
+
+                           ARGUMENT PASSING
+                           ================
+
+
+---- DATA STRUCTURES ----
+
+
+>> A1: Copy here the declaration of each new or changed `struct' or
+>> `struct' member, global or static variable, `typedef', ‘#define’, or
+>> enumeration that was necessary to implement argument passing.  
+>> Identify the purpose of each in 25 words or less.
+
+struct thread
+{
+   /* Driver: All of Us */
+   struct file* fd_list[128]; /* Unique Thread file list. */
+   struct file* curr_file; /* Current file that is deny_write */
+   int fd_val; /* file descriptor value for indexing into fd_list */
+   struct list_elem child_elem; /* Gain access to list.c functionality */ 
+   struct list list_of_childs; /* List of parent's children */
+   /* Semaphore that synchronizes load for wait and exec */
+   struct semaphore load_val; 
+   /* Semaphore synchronizing parent waiting on child. */
+   struct semaphore wait_sema;
+   /* Semaphore synchronizing before terminating child. */
+   struct semaphore killed_sema;
+   /* Checks for loading error, if error then kill process. */
+   bool load_error;
+   bool waited; /* If true, tells us wait() has been called. */
+   bool child_exited; /* Exit will set this on the thread's parent */
+   int child_status; /* Wait will look at this value; */
+   int e_status; /* Exit status of child. */
+};
+
+---- ALGORITHMS ----
+
+
+>> A2: Briefly describe how you implemented argument parsing.  How do
+>> you arrange for the elements of argv[] to be in the right order?
+>> How do you avoid overflowing the stack page?  Is it enough to limit
+>> the size of the incoming commandline?  Why or Why not?
+
+We passed in a copy of the file name into setup_stack so that we could 
+make two copies of it. The first copy to parse through it and get the 
+number of tokens, so that we can initialize the correct size array
+to store the program_name and arguments and associated addresses
+in a different array.
+
+We arrange the argv[] elements by using a while loop from back to front,
+we also decrement the stack by each argument we push.
+
+OLD VERSION
+We made two copies of the cmdline and tokenized both copies. The first copy 
+enables us to extract the file_name, and the second parses the arguments into 
+our argv[] array. Both copies are needed, as each copy is corrupted by
+strtok_r. The first copy is corrupted because we can't reset back, as it
+will change our file_name we extacted, and the second copy is corrupted
+because we would have a bad pointer. After every argument we pushed onto
+the stack, we decremented by the length of the argument + 1.
+OLD VERSION
+
+
+We avoided overflowing the stack page by checking that the pointer address 
+minus the last argument and one extra byte did not go past the physical
+base register minus the page size. If an overflow occurred, we returned
+false, and killed the thread in loading phase.
+
+No, it is not enough to limit the size of the commandline because it is
+still possible for an argument to overflow the stack if the physical base
+address is exceeded. This is because the stack pointer could start somewhere
+not within the bounds of user space, and illegally allocate in kernel
+space.
+
+---- RATIONALE ----
+
+
+>> A3: Why does Pintos implement strtok_r() but not strtok()?
+
+While strtok_r promotes multi-thread safety which prevents race conditions
+and concurrency errors, strtok does not provide multi-thread safety.
+According to the linux manual, "The strtok() function uses a static buffer 
+while parsing, so it's not thread safe. Use strtok_r() if this matters to 
+you." Static data is shared by multiple threads, so if thread 1 is 
+interrupted, its buffer may be overwritten with something else and so the 
+contents will be corrupted.
+
+>> A4: In Pintos, the kernel separates commands into an executable name
+>> and arguments.  In Unix-like systems, the shell does this
+>> separation.  Identify at least two advantages of the Unix approach.
+
+Second answer: Since the shell runs on a process, it can exploit 
+multithreaded programming to separate commands and arguments quicker.
+It can also fork multiple processes to execute multiple arguments
+at once.
+
+First answer:
+The Unix approach supports failure atomicity - the command either runs or
+fails, preventing race conditions. Also, Unix's approach is quicker
+because it is not waiting for user input, thus increasing performance - 
+CPU utilization and throughput.
+
+Final answer:
+Since the shell is a user interface on top of the Operating System,
+multiple programmers can run and execute commands simultaneously
+from their own shell. Also, the separation of shell from kernel adds
+security, as the programmer is interfacing from the shell and not
+inside of the kernel.  
+
+
+                             SYSTEM CALLS
+                             ============
+
+
+---- DATA STRUCTURES ----
+
+
+>> B1: Copy here the declaration of each new or changed `struct' or
+>> `struct' member, global or static variable, `typedef', ‘#define’, or
+>> enumeration.  Identify the purpose of each in 25 words or less.
+
+struct thread {
+   struct file* fd_list[128]; /* Unique Thread file list. */
+   struct file* curr_file; /* Current file that is deny_write */
+   int fd_val; /* file descriptor value for indexing into fd_list */
+   struct list_elem child_elem; /* Gain access to list.c functionality */ 
+   struct list list_of_childs; /* List of parent's children */
+   /* Semaphore that synchronizes load for wait and exec */
+   struct semaphore load_val; 
+   /* Semaphore synchronizing parent waiting on child. */
+   struct semaphore wait_sema;
+   /* Semaphore synchronizing before terminating child. */
+   struct semaphore killed_sema;
+   /* Checks for loading error, if error then kill process. */
+   bool load_error;
+   bool waited; /* If true, tells us wait() has been called. */
+   bool child_exited; /* Exit will set this on the thread's parent */
+   int child_status; /* Wait will look at this value; */
+   int e_status; /* Exit status of child. */
+}
+
+>> B2: Describe how file descriptors are associated with open files.
+>> Are file descriptors unique within the entire OS or just within a
+>> single process?
+
+File descriptors are handles that act similar, but not exactly like pointers
+to these open files. They enable us to continue to read and write to files
+even after we dereference the file descriptor for another purpose.
+File descriptors are unique within a single process, as evidenced in our
+code, where each thread has its own file_list that is indexed by file
+descriptor.
+
+
+---- ALGORITHMS ----
+
+
+>> B3: Describe your code for accessing user data in the
+>> kernel.
+
+First, we run the interrupt handler so that we can drop down
+into kernel mode and then call system calls.
+
+We read and write user data by using the read and write system calls.
+We protect memory accesses by checking pointers to these system calls
+and terminating them with exit(-1) if a violation has occurred.
+
+Right after our code checks the validity of the file descriptor, it
+determines where read/write is going to occur, standard input, output or
+in another file. If a process fails our validity check, it is terminated.
+
+We use the filesys input_getc and standard input / output putbuf buffer
+to manipulate our files.
+
+>> B4: Suppose a system call causes a full page (4,096 bytes) of data
+>> to be copied from user space into the kernel.  Based on your code, 
+>> what is the least and the greatest possible number of inspections of 
+>> the page table (e.g. calls to pagedir_get_page()) that might result?  
+>> What about for a system call that only copies 2 bytes of data?  Is there 
+>> room for improvement in these numbers, and how much?
+
+
+It's possible that each page may only be one byte, and so at most,
+our code may inspect 4096 times, and 2 times for 2 bytes of data. 
+Given that each byte of data can fit onto different pages, instead
+of leaving empty bytes in pages, we can load the 2 bytes of data into
+each page, resulting in half of the inspections.
+
+At the very least, once for the 4096 byte page. 
+For the 2 bytes, once. 
+
+Our code works by checking the first byte and then checking again before
+passing arguments into the stack, and then by checking once
+it page faults. We used to have the code for checking each page,
+but we deleted it because it caused us to fail tests. 
+
+Inside a page fault, we check for one of the three conditions for 
+the virtual address pointer.
+
+
+
+>> B5: Any access to user program memory at a user-specified address
+>> can fail due to a bad pointer value.  Such accesses must cause the
+>> process to be terminated.  System calls are fraught with such
+>> accesses, e.g. a "write" system call requires reading the system
+>> call number from the user stack, then each of the call's three
+>> arguments, then an arbitrary amount of user memory, and any of
+>> these can fail at any point.  This poses a design and
+>> error-handling problem: how do you best avoid obscuring the primary
+>> function of code in a morass of error-handling?  Furthermore, when
+>> an error is detected, how do you ensure that all temporarily
+>> allocated resources (locks, buffers, etc.) are freed?  In a few
+>> sentences, describe the strategy or strategies you adopted for
+>> managing these issues.  Give an example.
+
+We abstracted our error-handling outside of our system calls, resulting
+in cleaner code. For example: Our check_pointer function in syscall.c:
+lines 165-175 handles pointer-related errors; Our overflow_check function 
+in process.c: lines 634-643. To ensure that all allocated resources
+are freed, we made sure to free allocated resources before exiting the
+thread. 
+
+We did not free buffers, we did not free locks, this could
+be a potential reason as to why we did not pass multi-oom.
+
+I don't think we freed our buffers, I think we should free 
+temporarily allocated resources immediately after they fail.
+
+
+---- SYNCHRONIZATION ----
+
+
+>> B6: Briefly describe your implementation of the "wait" system call
+>> and how it interacts with process termination.
+
+Our parent thread's wait call calls sema_down inside process_wait 
+on our wait_sema semaphore until it is signalled by its child that 
+has entered process_exit and will terminate. 
+
+Then our process_exit child semaphore downs 
+and waits for the parent to remove it from the parent child list 
+before being signalled and proceeding to termination. 
+
+>> B7: Consider parent process P with child process C.  Explain how
+>> how your code ensures synchronization and avoids race conditions
+>> in each of the following cases:
+>> a) when P calls wait(C) before C exits?  
+>> b) when P calls wait(C) after C exits?  
+>> c) when P terminates without waiting before C exits?  
+>> d) when P terminates without waiting after C exits?  
+>> e) Are there any special cases?
+
+Each of our child processes has two sempahores, wait_sema, and killed_sema
+which are ordered in a rendezvous pattern inside of wait and exit, so that
+for cases a), when P calls wait(C) before C exits, the wait 
+semaphore inside the child struct will be downed until C signals that
+wait sempahore up, and lets P through. 
+
+For case b.) the child waited boolean will be set to true, so the parent
+will check for this boolean and return -1.
+
+For case c), the rendezvous pattern is extended to
+killed_sema in child struct. After P terminates, it ups the child
+struct's killed_sema, allowing C to exit without being blocked
+because it does not need to wait on the parent signal up. 
+
+For case d.)
+If P terminates after C exits, then P is still able to pass, as the 
+child struct's wait_sema is upped, letting the parent pass through
+wait without getting blocked at killed_sema.
+
+There are no special cases.
+
+>> B8: The "exec" system call returns -1 if loading the new executable
+>> fails, so it cannot return before the new executable has completed
+>> loading.  How does your code ensure this?  How is the load
+>> success/failure status passed back to the thread that calls "exec"?
+
+We ensure that exec cannot return until the new executable has
+completed loading by blocking the thread with a call to 
+sema_down(&child->load_val); It must wait until the new executable
+calls sema_up(&child->load_val) inside of start_process. We pass back
+the load status by setting the value of success to denote a load success
+or failure, and require that the thread that exec passes success == true,
+letting our parent know that the child has succeeded loading.
+
+---- RATIONALE ----
+
+
+>> B9: What advantages or disadvantages can you see to your design
+>> for file descriptors?
+
+Using a file_list array with a maximum of 128 files per process
+results in quick file lookup, as we can directly index into the
+array with a file descriptor. On the other hand, it does limit
+each process to a finite number of open files per process, which
+limits multithreading to 128 threads.
+
+>> B10: The default tid_t to pid_t mapping is the identity mapping.
+>> If you changed it, what advantages are there to your approach?
+
+We did not change the mapping.
+
+                           SURVEY QUESTIONS
+                           ================
+
+
+Answering these questions is optional, but it will help us improve the
+course in future semesters.  Feel free to tell us anything you
+want--these questions are just to spur your thoughts.  You may also
+choose to respond anonymously in the course evaluations at the end of
+the semester.
+
+
+>> In your opinion, was this assignment, or any one of the three problems
+>> in it, too easy or too hard?  Did it take too long or too little time?
+
+
+>> Did you find that working on a particular part of the assignment gave
+>> you greater insight into some aspect of OS design?
+
+
+>> Is there some particular fact or hint we should give students in
+>> future semesters to help them solve the problems?  Conversely, did you
+>> find any of our guidance to be misleading?
+
+
+>> Do you have any suggestions for the TAs to more effectively assist
+>> students, either for future semesters or the remaining projects?
+
+
+>> Any other comments?
