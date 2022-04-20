@@ -11,7 +11,7 @@
 #define INODE_MAGIC 0x494e4f44
 
 //Constants
-#define NUM_BLOCKS 128 //512/4
+#define BLOCKS_PER_INDIRECT 128 //512/4
 #define NUM_DIRECT 123
 #define NUM_SINGLE 1
 #define NUM_DOUBLE 1
@@ -30,6 +30,7 @@ struct inode_disk
   block_sector_t direct[NUM_DIRECT]; //array of 123 pointers to sectors aka direct blocks
   block_sector_t sgl_indirect;     //1 single indirect
   block_sector_t dbl_indirect;    //1 doubly indirect
+  bool is_directory;
 };
 
 /* Returns the number of sectors to allocate for an inode SIZE
@@ -50,6 +51,20 @@ struct inode
   struct inode_disk data; /* Inode content. */
 };
 
+// /* Returns the block device sector that contains byte offset POS
+//    within INODE.
+//    Returns -1 if INODE does not contain data for a byte at offset
+//    POS. */
+// static block_sector_t byte_to_sector (const struct inode *inode, off_t pos)
+// {
+//   ASSERT (inode != NULL);
+//   if (pos < inode->data.length)
+//     return inode->data.start + pos / BLOCK_SECTOR_SIZE;
+//   else
+//     return -1;
+// }
+
+
 /* Returns the block device sector that contains byte offset POS
    within INODE.
    Returns -1 if INODE does not contain data for a byte at offset
@@ -57,11 +72,43 @@ struct inode
 static block_sector_t byte_to_sector (const struct inode *inode, off_t pos)
 {
   ASSERT (inode != NULL);
-  if (pos < inode->data.length)
-    return inode->data.start + pos / BLOCK_SECTOR_SIZE;
-  else
+  if(pos < 0 || inode->data.length < pos){
     return -1;
+  }
+  off_t index = pos/BLOCK_SECTOR_SIZE; //get pointer index # in array to check what kind of pointer it is
+  block_sector_t indirect[BLOCKS_PER_INDIRECT]; //used for both singly indirect and doubly direct
+  //case 1: direct EASIEST CASE
+  if(index < NUM_DIRECT){
+    //can directly return block since it is direct
+    return inode->data.direct[index];
+  }
+  //case 2: singly indirect
+  else if(index < NUM_DIRECT + BLOCKS_PER_INDIRECT){
+    //read indirect data and put into indirect node array
+    block_read (fs_device, inode->data.sgl_indirect, indirect);
+    return indirect[NUM_DIRECT - index]; //need to return correct array index not including direct blocks
+  }
+  //case 3: doubly indirect
+  else if(index < 16,635) { //max index for all possible pointers
+    //not sure yet how to read this in...
+    //need to read and put in buffer double indirect reads
+    //need to parse out indirect blocks
+    //and return based on indirect block direct pointer
+    //create a buffer of indirect pointers since we have 128 indirect pointers
+    block_sector_t double_indr[BLOCKS_PER_INDIRECT];
+    block_read (fs_device, inode->data.dbl_indirect, double_indr);
+    //filled up with singly indirect pointers now
+    off_t sngl_indir_index = (index - 16,635)/BLOCKS_PER_INDIRECT; //indirect block num
+    //find singl indirect sector number by using % 
+    off_t sngl_sect_index = sngl_indir_index % BLOCKS_PER_INDIRECT;
+    //now need to read the data in the singular indirect and put in buffer
+    //similar to case 2
+    block_read(fs_device,double_indr[sngl_indir_index], indirect);
+    return indirect[sngl_sect_index];
+  }
+  return -1;
 }
+
 
 /* List of open inodes, so that opening a single inode twice
    returns the same `struct inode'. */
@@ -75,7 +122,7 @@ void inode_init (void) { list_init (&open_inodes); }
    device.
    Returns true if successful.
    Returns false if memory or disk allocation fails. */
-bool inode_create (block_sector_t sector, off_t length)
+bool inode_create (block_sector_t sector, off_t length, bool dir)
 {
   struct inode_disk *disk_inode = NULL;
   bool success = false;
@@ -92,6 +139,8 @@ bool inode_create (block_sector_t sector, off_t length)
       size_t sectors = bytes_to_sectors (length);
       disk_inode->length = length;
       disk_inode->magic = INODE_MAGIC;
+      disk_inode->is_directory = dir; //added
+
       if (free_map_allocate (sectors, &disk_inode->start))
         {
           block_write (fs_device, sector, disk_inode);
@@ -102,6 +151,11 @@ bool inode_create (block_sector_t sector, off_t length)
 
               for (i = 0; i < sectors; i++)
                 block_write (fs_device, disk_inode->start + i, zeros);
+              // for(i = 0; i < NUM_DIRECT; i++){
+              //     disk_inode->direct[i] = sector; //place sector data into direct pointers
+              // }
+
+
             }
           success = true;
         }
