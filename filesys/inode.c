@@ -12,7 +12,7 @@
 
 //Constants
 #define BLOCKS_PER_INDIRECT 128 //512/4
-#define NUM_DIRECT 123
+#define NUM_DIRECT 122
 #define NUM_SINGLE 1
 #define NUM_DOUBLE 1
 #define TOTAL_POINTERS 125
@@ -30,7 +30,7 @@ struct inode_disk
   block_sector_t direct[NUM_DIRECT]; //array of 123 pointers to sectors aka direct blocks
   block_sector_t sgl_indirect;     //1 single indirect
   block_sector_t dbl_indirect;    //1 doubly indirect
-  bool is_directory;
+  int is_directory; //should be a bool but modified for alignment purposes
 };
 
 /* Returns the number of sectors to allocate for an inode SIZE
