@@ -110,6 +110,8 @@ static block_sector_t byte_to_sector (const struct inode *inode, off_t pos)
 }
 
 
+
+
 /* List of open inodes, so that opening a single inode twice
    returns the same `struct inode'. */
 static struct list open_inodes;
@@ -162,6 +164,80 @@ bool inode_create (block_sector_t sector, off_t length, bool dir)
       free (disk_inode);
     }
   return success;
+}
+
+//allocate an inode to a given sector depending on size of sector
+bool map_inode_to_sect(block_sector_t sector, struct inode_disk * in_disk){
+
+  //have to check if we have enought to fill up all direct blocks
+  //or if we need more indirect blocks as well...
+  bool need_sng_indir = false;
+  int num_direct_needed = 0;
+  if(sector <= NUM_DIRECT){
+    num_direct_needed = sector;
+  }
+  if(sector > NUM_DIRECT){
+    need_sng_indir = true;
+  }
+
+  if(need_sng_indir == false){
+    //directly allocate
+    for (int i = 0; i < num_direct_needed; i++){
+      block_sector_t * curr_sect = &in_disk->direct[i];
+      //allocate one sector
+      bool allocated = free_map_allocate (1, curr_sect);
+      if(allocated == false){
+        return false;
+      }
+      else{
+         char zeros[BLOCK_SECTOR_SIZE];
+         block_write(fs_device, curr_sect, zeros);
+      }
+    }
+    return true;
+  }
+  else{
+    //need one singly indirect
+    //Check how many direct blocks are needed from singly indirect
+    int num_indir_dir = sector - num_direct_needed;
+    //need to check if we need a doubly indirect same as before
+    bool need_double = false;
+    if(num_indir_dir > 128){
+      need_double = true;
+    }
+    if(need_double == false){
+      //allocate for singly indirect now
+      //save direct blocks into an array
+      block_sector_t direct[128]; 
+      //allocate index block
+      bool allocated = free_map_allocate (1, in_disk->sgl_indirect);
+      if (allocated)
+      {
+        char zeros[BLOCK_SECTOR_SIZE];
+        block_write (fs_device, in_disk->sgl_indirect, zeros);
+      }
+      for(int i = 0; i < num_indir_dir; i++){
+        //now allocate the direct blocks in the singly indirect
+        bool allocated = free_map_allocate (1, &direct[i]);
+        if (allocated == false)
+        {
+          return false;
+        }
+        char zeros[BLOCK_SECTOR_SIZE];
+        block_write (fs_device, direct[i], zeros);
+      }
+      //write the actual singly indirect block now 
+      block_write(fs_device, in_disk->sgl_indirect, direct);
+    }
+    else{
+      //handle doubly indirect case need to allocate blocks to
+      //hold the doubly indirect indirect sectors
+      //then also allocate blocks to hold the direct from the indirect sectors
+      //TODO
+    }
+  }
+
+
 }
 
 /* Reads an inode from SECTOR
