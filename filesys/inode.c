@@ -86,10 +86,10 @@ static block_sector_t byte_to_sector (const struct inode *inode, off_t pos)
   else if(index < NUM_DIRECT + BLOCKS_PER_INDIRECT){
     //read indirect data and put into indirect node array
     block_read (fs_device, inode->data.sgl_indirect, indirect);
-    return indirect[NUM_DIRECT - index]; //need to return correct array index not including direct blocks
+    return indirect[index - NUM_DIRECT]; //need to return correct array index not including direct blocks
   }
   //case 3: doubly indirect
-  else if(index < 16,635) { //max index for all possible pointers
+  else if(index < 16635) { //max index for all possible pointers
     //not sure yet how to read this in...
     //need to read and put in buffer double indirect reads
     //need to parse out indirect blocks
@@ -98,9 +98,9 @@ static block_sector_t byte_to_sector (const struct inode *inode, off_t pos)
     block_sector_t double_indr[BLOCKS_PER_INDIRECT];
     block_read (fs_device, inode->data.dbl_indirect, double_indr);
     //filled up with singly indirect pointers now
-    off_t sngl_indir_index = (index - 16,635)/BLOCKS_PER_INDIRECT; //indirect block num
+    off_t sngl_indir_index = (16635 - index)/BLOCKS_PER_INDIRECT; //indirect block num
     //find singl indirect sector number by using % 
-    off_t sngl_sect_index = sngl_indir_index % BLOCKS_PER_INDIRECT;
+    off_t sngl_sect_index = (16635 - index) % BLOCKS_PER_INDIRECT;
     //now need to read the data in the singular indirect and put in buffer
     //similar to case 2
     block_read(fs_device,double_indr[sngl_indir_index], indirect);
