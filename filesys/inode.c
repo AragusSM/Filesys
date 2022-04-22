@@ -13,6 +13,7 @@
 //Constants
 #define BLOCKS_PER_INDIRECT 128 //512/4
 #define NUM_DIRECT 120
+#define NUM_TOTAL 16632
 #define NUM_SINGLE 1
 #define NUM_DOUBLE 1
 #define TOTAL_POINTERS 125
@@ -89,7 +90,7 @@ static block_sector_t byte_to_sector(const struct inode *inode, off_t pos)
     return indirect[index - NUM_DIRECT]; // need to return correct array index not including direct blocks
   }
   // case 3: doubly indirect
-  else if (index < 16635)
+  else if (index < NUM_TOTAL)
   { // max index for all possible pointers
     // not sure yet how to read this in...
     // need to read and put in buffer double indirect reads
@@ -99,9 +100,9 @@ static block_sector_t byte_to_sector(const struct inode *inode, off_t pos)
     block_sector_t double_indr[BLOCKS_PER_INDIRECT];
     block_read(fs_device, inode->data.dbl_indirect, double_indr);
     // filled up with singly indirect pointers now
-    off_t sngl_indir_index = (16635 - index) / BLOCKS_PER_INDIRECT; // indirect block num
+    off_t sngl_indir_index = (index - (NUM_DIRECT + BLOCKS_PER_INDIRECT)) / BLOCKS_PER_INDIRECT; // indirect block num
     // find singl indirect sector number by using %
-    off_t sngl_sect_index = (16635 - index) % BLOCKS_PER_INDIRECT;
+    off_t sngl_sect_index = (index - (NUM_DIRECT + BLOCKS_PER_INDIRECT)) % BLOCKS_PER_INDIRECT;
     // now need to read the data in the singular indirect and put in buffer
     // similar to case 2
     block_read(fs_device, double_indr[sngl_indir_index], indirect);
@@ -144,7 +145,7 @@ bool inode_create(block_sector_t sector, off_t length, bool dir)
     disk_inode->pointers[0] = &disk_inode->direct; 
     disk_inode->pointers[1] = &disk_inode->sgl_indirect;
     disk_inode->pointers[2] = &disk_inode->dbl_indirect;
-    if (free_map_allocate(sectors, &disk_inode->start))
+    if (free_map_allocate(sectors, disk_inode->pointers))
     {
           block_write (fs_device, sector, disk_inode);
           if (sectors > 0)
@@ -153,7 +154,7 @@ bool inode_create(block_sector_t sector, off_t length, bool dir)
               size_t i;
 
               for (i = 0; i < sectors; i++)
-                block_write (fs_device, disk_inode->start + i, zeros);
+                block_write (fs_device, disk_inode->pointers + i, zeros);
               // for(i = 0; i < NUM_DIRECT; i++){
               //     disk_inode->direct[i] = sector; //place sector data into direct pointers
               // }
@@ -395,7 +396,7 @@ void inode_close(struct inode *inode)
     if (inode->removed)
     {
       free_map_release(inode->sector, 1);
-      free_map_release(inode->data.start,
+      free_map_release(inode->data.pointers,
                        bytes_to_sectors(inode->data.length));
     }
 
