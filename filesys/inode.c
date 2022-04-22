@@ -12,7 +12,7 @@
 
 //Constants
 #define BLOCKS_PER_INDIRECT 128 //512/4
-#define NUM_DIRECT 122
+#define NUM_DIRECT 120
 #define NUM_SINGLE 1
 #define NUM_DOUBLE 1
 #define TOTAL_POINTERS 125
@@ -23,11 +23,11 @@
    Must be exactly BLOCK_SECTOR_SIZE bytes long. */
 struct inode_disk
 {
-  block_sector_t start; /* First data sector. */
+  block_sector_t pointers[3]; /* stores first direct block, sgl_indirect, and dbl_indirect */
   off_t length;         /* File size in bytes. */
   unsigned magic;       /* Magic number. */
   //uint32_t unused[125];  
-  block_sector_t direct[NUM_DIRECT]; //array of 123 pointers to sectors aka direct blocks
+  block_sector_t direct[NUM_DIRECT]; //array of 120 pointers to sectors aka direct blocks
   block_sector_t sgl_indirect;     //1 single indirect
   block_sector_t dbl_indirect;    //1 doubly indirect
   int is_directory; //should be a bool but modified for alignment purposes
@@ -142,8 +142,12 @@ bool inode_create (block_sector_t sector, off_t length, bool dir)
       disk_inode->length = length;
       disk_inode->magic = INODE_MAGIC;
       disk_inode->is_directory = dir; //added
+      //add the disk pointers to an array to pass to free map
+      disk_inode->pointers[0] = &disk_inode->direct; 
+      disk_inode->pointers[1] = &disk_inode->sgl_indirect;
+      disk_inode->pointers[2] = &disk_inode->dbl_indirect;
 
-      if (free_map_allocate (sectors, &disk_inode->start))
+      if (free_map_allocate (sectors, disk_inode->pointers))
         {
           block_write (fs_device, sector, disk_inode);
           if (sectors > 0)

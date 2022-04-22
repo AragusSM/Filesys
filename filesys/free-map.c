@@ -5,6 +5,9 @@
 #include "filesys/filesys.h"
 #include "filesys/inode.h"
 
+#define BLOCKS_PER_INDIRECT 128 //512/4
+#define NUM_DIRECT 120
+
 static struct file *free_map_file; /* Free map file. */
 static struct bitmap *free_map;    /* Free map, one bit per sector. */
 
@@ -18,13 +21,43 @@ void free_map_init (void)
   bitmap_mark (free_map, ROOT_DIR_SECTOR);
 }
 
-/* Allocates CNT consecutive sectors from the free map and stores
+/* Allocates CNT (CHANGED) sectors from the free map and stores
    the first into *SECTORP.
-   Returns true if successful, false if not enough consecutive
+   Returns true if successful, false if not enough
    sectors were available or if the free_map file could not be
    written. */
 bool free_map_allocate (size_t cnt, block_sector_t *sectorp)
 {
+  //stores allocated sectors to sector nums in order to unset bits if bitmap error occurs.
+  block_sector_t sector_nums[cnt];
+  for(int i = 0; i < cnt; i++){
+    block_sector_t sector = bitmap_scan_and_flip (free_map, 0, 1, false);
+    sector_nums[i] = sector;
+    if (sector != BITMAP_ERROR && free_map_file != NULL &&
+        !bitmap_write (free_map, free_map_file))
+      {
+        //bitmap_set_multiple (free_map, sector, 1, false);
+        sector = BITMAP_ERROR;
+      }
+    if (sector == BITMAP_ERROR);
+    {
+      //reset sectors 0 to i in case of error
+      for(int j = 0; j <= i; i++){
+        bitmap_reset(free_map, sector_nums[j]);
+      }
+      return false;
+    }
+      //if less than NUM_DIRECT, set the direct pointers to the sectors
+    if(i < NUM_DIRECT){
+      block_sector_t* direct_block = sectorp[0] + i;
+      *direct_block = sector;
+    }else if (i < NUM_DIRECT + BLOCKS_PER_INDIRECT){
+      block_sector_t* indirect_block = sectorp[1];
+      //block_sector_t* direct_block = indirect_block
+    }
+    
+  }
+  return true;
   block_sector_t sector = bitmap_scan_and_flip (free_map, 0, cnt, false);
   if (sector != BITMAP_ERROR && free_map_file != NULL &&
       !bitmap_write (free_map, free_map_file))
