@@ -99,7 +99,7 @@ bool free_map_allocate (size_t cnt, block_sector_t *sectorp)
 
     //write the buffer filled with blocks to the indirect header
     block_write(fs_device, indirect_block, sector_nums);
-
+    sectorp[1] = indirect_block;
     //setup bitmap for double indirect
     }else{
       if(cnt > NUM_TOTAL){
@@ -127,6 +127,7 @@ bool free_map_allocate (size_t cnt, block_sector_t *sectorp)
 
       //write the buffer filled with blocks to the indirect header
       block_write(fs_device, indirect_block, sector_nums);
+      sectorp[1] = indirect_block;
 
       //allocate double indirect blocks
       off_t total = (cnt - (NUM_DIRECT + BLOCKS_PER_INDIRECT));
@@ -162,6 +163,7 @@ bool free_map_allocate (size_t cnt, block_sector_t *sectorp)
         block_write(fs_device, ind_block, sector_nums3);
       }
       block_write(fs_device, dbl_indirect_block, sector_nums2);
+      sectorp[2] = indirect_block;
     }
   }else{
     //only direct allocations needed

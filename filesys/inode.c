@@ -111,6 +111,7 @@ static block_sector_t byte_to_sector(const struct inode *inode, off_t pos)
   return -1;
 }
 
+
 /* List of open inodes, so that opening a single inode twice
    returns the same `struct inode'. */
 static struct list open_inodes;
@@ -141,24 +142,48 @@ bool inode_create(block_sector_t sector, off_t length, bool dir)
     disk_inode->length = length;
     disk_inode->magic = INODE_MAGIC;
     disk_inode->is_directory = dir; // added
-    //add the disk pointers to an array to pass to free map
-    disk_inode->pointers[0] = &disk_inode->direct; 
-    disk_inode->pointers[1] = &disk_inode->sgl_indirect;
-    disk_inode->pointers[2] = &disk_inode->dbl_indirect;
+    //pass in an pointers into free_map_allocate and assign them to blocks
+    disk_inode->pointers[0] = disk_inode->direct;
     if (free_map_allocate(sectors, disk_inode->pointers))
     {
+          disk_inode->sgl_indirect = disk_inode->pointers[1];
+          disk_inode->dbl_indirect = disk_inode->pointers[2];
           block_write (fs_device, sector, disk_inode);
           if (sectors > 0)
             {
               static char zeros[BLOCK_SECTOR_SIZE];
               size_t i;
 
-              for (i = 0; i < sectors; i++)
-                block_write (fs_device, disk_inode->pointers + i, zeros);
+              for (i = 0; i < sectors; i++){
+                block_sector_t write_sector;
+                if(i < NUM_DIRECT){
+                  write_sector = disk_inode->direct[i];
+                }else if(i < NUM_DIRECT + BLOCKS_PER_INDIRECT){
+                  block_sector_t indirect[BLOCKS_PER_INDIRECT];
+                  block_read(fs_device, disk_inode->sgl_indirect, indirect);
+                  write_sector = indirect[i - NUM_DIRECT];
+                }else if (i < NUM_TOTAL){
+                  block_sector_t double_indr[BLOCKS_PER_INDIRECT];
+                  block_sector_t indirect[BLOCKS_PER_INDIRECT];
+                  block_read(fs_device, disk_inode->dbl_indirect, double_indr);
+                  // filled up with singly indirect pointers now
+                  off_t sngl_indir_index = (i - (NUM_DIRECT + BLOCKS_PER_INDIRECT)) / BLOCKS_PER_INDIRECT; // indirect block num
+                  // find singl indirect sector number by using %
+                  off_t sngl_sect_index = (i - (NUM_DIRECT + BLOCKS_PER_INDIRECT)) % BLOCKS_PER_INDIRECT;
+                  // now need to read the data in the singular indirect and put in buffer
+                  // similar to case 2
+                  block_read(fs_device, double_indr[sngl_indir_index], indirect);
+                  write_sector = indirect[sngl_sect_index];
+                }else{
+                  return false;
+                }
+              //inode_disk should now have all the blocks allocated, just need to write
+                block_write (fs_device, write_sector, zeros);
               // for(i = 0; i < NUM_DIRECT; i++){
               //     disk_inode->direct[i] = sector; //place sector data into direct pointers
               // }
 
+              }
 
             }
           success = true;
@@ -169,7 +194,7 @@ bool inode_create(block_sector_t sector, off_t length, bool dir)
 }
 
 // allocate an inode to a given sector depending on size of sector
-bool map_inode_to_sect(block_sector_t sector, struct inode_disk *in_disk)
+/*bool map_inode_to_sect(block_sector_t sector, struct inode_disk *in_disk)
 {
 
   // have to check if we have enought to fill up all direct blocks
@@ -326,7 +351,7 @@ bool map_inode_to_sect(block_sector_t sector, struct inode_disk *in_disk)
        }
     }
   }
-}
+}*/
 
 /* Reads an inode from SECTOR
    and returns a `struct inode' that contains it.
