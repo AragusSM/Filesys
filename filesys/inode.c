@@ -193,165 +193,165 @@ bool inode_create(block_sector_t sector, off_t length, bool dir)
   return success;
 }
 
-// allocate an inode to a given sector depending on size of sector
-/*bool map_inode_to_sect(block_sector_t sector, struct inode_disk *in_disk)
-{
+// // allocate an inode to a given sector depending on size of sector
+// bool map_inode_to_sect(block_sector_t sector, struct inode_disk *in_disk)
+// {
 
-  // have to check if we have enought to fill up all direct blocks
-  // or if we need more indirect blocks as well...
-  bool need_sng_indir = false;
-  int num_direct_needed = 0;
-  if (sector <= NUM_DIRECT)
-  {
-    num_direct_needed = sector;
-  }
-  if (sector > NUM_DIRECT)
-  {
-    need_sng_indir = true;
-  }
+//   // have to check if we have enought to fill up all direct blocks
+//   // or if we need more indirect blocks as well...
+//   bool need_sng_indir = false;
+//   int num_direct_needed = 0;
+//   if (sector <= NUM_DIRECT)
+//   {
+//     num_direct_needed = sector;
+//   }
+//   if (sector > NUM_DIRECT)
+//   {
+//     need_sng_indir = true;
+//   }
 
-  if (need_sng_indir == false)
-  {
-    // directly allocate
-    for (int i = 0; i < num_direct_needed; i++)
-    {
-      block_sector_t *curr_sect = &in_disk->direct[i];
-      // allocate one sector
-      bool allocat = free_map_allocate(1, curr_sect);
-      if (allocat == false)
-      {
-        return false;
-      }
-      else
-      {
-        char zero[BLOCK_SECTOR_SIZE];
-        block_write(fs_device, curr_sect, zero);
-      }
-    }
-    return true;
-  }
-  else
-  {
-    // need one singly indirect
-    // Check how many direct blocks are needed from singly indirect
-    int num_indir_dir = sector - num_direct_needed;
-    // need to check if we need a doubly indirect same as before
-    bool need_double = false;
-    if (num_indir_dir > 128)
-    {
-      need_double = true;
-    }
-    if (need_double == false)
-    {
-      // allocate for singly indirect now
-      // save direct blocks into an array
-      block_sector_t direct[128];
-      // allocate index block
-      bool allocated = free_map_allocate(1, in_disk->sgl_indirect);
-      if (allocated)
-      {
-        char zeros[BLOCK_SECTOR_SIZE];
-        block_write(fs_device, in_disk->sgl_indirect, zeros);
-      }
-      else
-      {
-        return false;
-      }
-      for (int i = 0; i < num_indir_dir; i++)
-      {
-        // now allocate the direct blocks in the singly indirect
-        bool allocated = free_map_allocate(1, &direct[i]);
-        if (allocated == false)
-        {
-          return false;
-        }
-        char zeros[BLOCK_SECTOR_SIZE];
-        block_write(fs_device, direct[i], zeros);
-      }
-      // write the actual singly indirect block now
-      block_write(fs_device, in_disk->sgl_indirect, direct);
-    }
-    else
-    {
-      // handle doubly indirect case need to allocate blocks to
-      // hold the doubly indirect indirect sectors
-      // then also allocate blocks to hold the direct from the indirect sectors
-      // TODO
-      // first try to allocate the double indirect block
-      bool allocated2 = free_map_allocate(1, in_disk->dbl_indirect);
-      if (allocated2)
-      {
-        char zeros2[BLOCK_SECTOR_SIZE];
-        block_write(fs_device, in_disk->sgl_indirect, zeros2);
-      }
-      else
-      {
-        return false;
-      }
-      int num_dir_allocated = sector;
-      int num_dir_total = BLOCKS_PER_INDIRECT * BLOCKS_PER_INDIRECT;
-      if (sector > num_dir_total)
-      {
-        num_dir_allocated = num_dir_total;
-      }
+//   if (need_sng_indir == false)
+//   {
+//     // directly allocate
+//     for (int i = 0; i < num_direct_needed; i++)
+//     {
+//       block_sector_t *curr_sect = &in_disk->direct[i];
+//       // allocate one sector
+//       bool allocat = free_map_allocate(1, curr_sect);
+//       if (allocat == false)
+//       {
+//         return false;
+//       }
+//       else
+//       {
+//         char zero[BLOCK_SECTOR_SIZE];
+//         block_write(fs_device, curr_sect, zero);
+//       }
+//     }
+//     return true;
+//   }
+//   else
+//   {
+//     // need one singly indirect
+//     // Check how many direct blocks are needed from singly indirect
+//     int num_indir_dir = sector - num_direct_needed;
+//     // need to check if we need a doubly indirect same as before
+//     bool need_double = false;
+//     if (num_indir_dir > 128)
+//     {
+//       need_double = true;
+//     }
+//     if (need_double == false)
+//     {
+//       // allocate for singly indirect now
+//       // save direct blocks into an array
+//       block_sector_t direct[128];
+//       // allocate index block
+//       bool allocated = free_map_allocate(1, in_disk->sgl_indirect);
+//       if (allocated)
+//       {
+//         char zeros[BLOCK_SECTOR_SIZE];
+//         block_write(fs_device, in_disk->sgl_indirect, zeros);
+//       }
+//       else
+//       {
+//         return false;
+//       }
+//       for (int i = 0; i < num_indir_dir; i++)
+//       {
+//         // now allocate the direct blocks in the singly indirect
+//         bool allocated = free_map_allocate(1, &direct[i]);
+//         if (allocated == false)
+//         {
+//           return false;
+//         }
+//         char zeros[BLOCK_SECTOR_SIZE];
+//         block_write(fs_device, direct[i], zeros);
+//       }
+//       // write the actual singly indirect block now
+//       block_write(fs_device, in_disk->sgl_indirect, direct);
+//     }
+//     else
+//     {
+//       // handle doubly indirect case need to allocate blocks to
+//       // hold the doubly indirect indirect sectors
+//       // then also allocate blocks to hold the direct from the indirect sectors
+//       // TODO
+//       // first try to allocate the double indirect block
+//       bool allocated2 = free_map_allocate(1, in_disk->dbl_indirect);
+//       if (allocated2)
+//       {
+//         char zeros2[BLOCK_SECTOR_SIZE];
+//         block_write(fs_device, in_disk->sgl_indirect, zeros2);
+//       }
+//       else
+//       {
+//         return false;
+//       }
+//       int num_dir_allocated = sector;
+//       int num_dir_total = BLOCKS_PER_INDIRECT * BLOCKS_PER_INDIRECT;
+//       if (sector > num_dir_total)
+//       {
+//         num_dir_allocated = num_dir_total;
+//       }
 
-      int num_dir_fr_dbl = num_dir_allocated;
+//       int num_dir_fr_dbl = num_dir_allocated;
 
       
-      block_sector_t indir_blocks[BLOCKS_PER_INDIRECT];
-      for (int i = 0; i < BLOCKS_PER_INDIRECT; i++)
-      {
-        if (num_dir_allocated <= 0)
-        {
-          i = BLOCKS_PER_INDIRECT;
-          // early exit
-        }
-        int num_indir_dir2 = min(num_dir_allocated, BLOCKS_PER_INDIRECT);
+//       block_sector_t indir_blocks[BLOCKS_PER_INDIRECT];
+//       for (int i = 0; i < BLOCKS_PER_INDIRECT; i++)
+//       {
+//         if (num_dir_allocated <= 0)
+//         {
+//           i = BLOCKS_PER_INDIRECT;
+//           // early exit
+//         }
+//         int num_indir_dir2 = min(num_dir_allocated, BLOCKS_PER_INDIRECT);
 
-        // allocate singly indir
-        block_sector_t direct_dbl[128];
-        // allocate index block
-        bool allocated = free_map_allocate(1, indir_blocks[i]);
-        if (allocated)
-        {
-          char zeros_dbl[BLOCK_SECTOR_SIZE];
-          block_write(fs_device, indir_blocks[i], zeros_dbl);
-        }
-        else
-        {
-          return false;
-        }
-
-
-        for (int i = 0; i < num_indir_dir2; i++)
-        {
-          // now allocate the direct blocks in the singly indirect
-          bool allocated_dbl = free_map_allocate(1, &direct_dbl[i]);
-          if (allocated_dbl == false)
-          {
-            return false;
-          }
-          char zeros_dbl2[BLOCK_SECTOR_SIZE];
-          block_write(fs_device, direct_dbl[i], zeros_dbl2);
-        }
-         block_write (fs_device, indir_blocks, direct_dbl);
-
-        num_dir_allocated -= num_indir_dir2;
+//         // allocate singly indir
+//         block_sector_t direct_dbl[128];
+//         // allocate index block
+//         bool allocated = free_map_allocate(1, indir_blocks[i]);
+//         if (allocated)
+//         {
+//           char zeros_dbl[BLOCK_SECTOR_SIZE];
+//           block_write(fs_device, indir_blocks[i], zeros_dbl);
+//         }
+//         else
+//         {
+//           return false;
+//         }
 
 
-      }
+//         for (int i = 0; i < num_indir_dir2; i++)
+//         {
+//           // now allocate the direct blocks in the singly indirect
+//           bool allocated_dbl = free_map_allocate(1, &direct_dbl[i]);
+//           if (allocated_dbl == false)
+//           {
+//             return false;
+//           }
+//           char zeros_dbl2[BLOCK_SECTOR_SIZE];
+//           block_write(fs_device, direct_dbl[i], zeros_dbl2);
+//         }
+//          block_write (fs_device, indir_blocks, direct_dbl);
 
-       block_write (fs_device, in_disk->dbl_indirect, indir_blocks);
+//         num_dir_allocated -= num_indir_dir2;
 
-       if(sector - num_dir_fr_dbl == 0){
-         return true;
-       }
-       else{
-         return false;
-       }
-    }
-  }
-}*/
+
+//       }
+
+//        block_write (fs_device, in_disk->dbl_indirect, indir_blocks);
+
+//        if(sector - num_dir_fr_dbl == 0){
+//          return true;
+//        }
+//        else{
+//          return false;
+//        }
+//     }
+//   }
+// }
 
 /* Reads an inode from SECTOR
    and returns a `struct inode' that contains it.
@@ -492,6 +492,126 @@ off_t inode_read_at(struct inode *inode, void *buffer_, off_t size,
   return bytes_read;
 }
 
+//return index of direct in doubly indirect pointer
+int get_dir_index(off_t pos){
+  int index = pos - (NUM_DIRECT + BLOCKS_PER_INDIRECT);
+  int dir_index= (index / BLOCKS_PER_INDIRECT) % BLOCKS_PER_INDIRECT;
+  return dir_index;
+}
+
+//grow file 
+static block_sector_t grow_file(off_t pos, struct inode *inode){
+  off_t num_dir_needed = pos / BLOCK_SECTOR_SIZE;
+  //check if can allocate only using direct blocks
+  if (num_dir_needed < NUM_DIRECT)
+  {
+    // file growth - allocate a direct block
+    // directly allocate 1 sector at a time
+    block_sector_t *curr_sect = &inode->data.direct[num_dir_needed];
+    bool allocated = free_map_allocate (1, curr_sect);
+    if (allocated == false)
+    {
+      return NULL;
+    }
+    else
+    {
+      char zero[BLOCK_SECTOR_SIZE];
+      block_write(fs_device, curr_sect, zero);
+    }
+
+    return *curr_sect;
+  }
+  else if(num_dir_needed < BLOCKS_PER_INDIRECT){
+    block_sector_t dir_ptrs[BLOCKS_PER_INDIRECT];
+    //single indirect 
+    int index_of_dir_in_indir =  num_dir_needed - NUM_DIRECT;
+    //allocate indirect block if necessary
+    block_sector_t *curr_sect2 = &inode->data.sgl_indirect;
+    bool allocated = free_map_allocate (1, curr_sect2);
+    if (allocated == false)
+    {
+      return NULL;
+    }
+    else
+    {
+      char zero1[BLOCK_SECTOR_SIZE];
+      block_write(fs_device, curr_sect2, zero1);
+    }
+    //store data into direct pointers
+    block_read (fs_device, inode->data.sgl_indirect, dir_ptrs);
+    //create sector
+    block_sector_t *curr_sect3 = &dir_ptrs[index_of_dir_in_indir];
+    bool allocated = free_map_allocate (1, curr_sect3);
+    if (allocated == false)
+    {
+      return NULL;
+    }
+    else
+    {
+      char zero2[BLOCK_SECTOR_SIZE];
+      block_write(fs_device, curr_sect3, zero2);
+    }
+
+    block_write (fs_device, inode->data.sgl_indirect, dir_ptrs);
+  
+    return dir_ptrs[index_of_dir_in_indir];
+  }
+  else{
+     block_sector_t indir_ptrs[BLOCKS_PER_INDIRECT];
+    //allocate doubly indir index block
+    block_sector_t *curr_sect4 = &inode->data.dbl_indirect;
+    bool allocated = free_map_allocate (1, curr_sect4);
+    if (allocated == false)
+    {
+      return NULL;
+    }
+    else
+    {
+      char zero3[BLOCK_SECTOR_SIZE];
+      block_write(fs_device, curr_sect4, zero3);
+    }
+
+    //fill indir 
+    block_read (fs_device, inode->data.dbl_indirect, indir_ptrs);
+    int index_dir = get_dir_index(num_dir_needed);
+    int index_of_indir = num_dir_needed - (NUM_DIRECT + BLOCKS_PER_INDIRECT);
+    if(index_dir == 0){
+      block_sector_t *curr_sect5 = &indir_ptrs[index_of_indir/BLOCKS_PER_INDIRECT];
+      bool allocated = free_map_allocate (1, curr_sect5);
+      if (allocated == false)
+      {
+        return NULL;
+      }
+      else
+      {
+        char zero4[BLOCK_SECTOR_SIZE];
+        block_write(fs_device, curr_sect5, zero4);
+      }
+      block_write (fs_device, inode->data.dbl_indirect, indir_ptrs);
+    }
+    block_sector_t dir_indir[BLOCKS_PER_INDIRECT];
+    // read in the indirect block
+    block_read (fs_device, indir_ptrs[(num_dir_needed/BLOCKS_PER_INDIRECT)], dir_indir); 
+    // file growth - initialize direct block, update indirect block
+    block_sector_t *curr_sect6 = &dir_indir[index_dir];
+    bool allocated = free_map_allocate (1, curr_sect6);
+    if (allocated == false)
+    {
+      return NULL;
+    }
+    else
+    {
+      char zero5[BLOCK_SECTOR_SIZE];
+      block_write(fs_device, curr_sect6, zero5);
+    }
+
+    block_write (fs_device, indir_ptrs[(num_dir_needed/BLOCKS_PER_INDIRECT)], dir_indir);
+  
+    return dir_indir[index_dir];
+  }
+
+}
+
 /* Writes SIZE bytes from BUFFER into INODE, starting at OFFSET.
    Returns the number of bytes actually written, which may be
    less than SIZE if end of file is reached or an error occurs.
@@ -506,6 +626,19 @@ off_t inode_write_at(struct inode *inode, const void *buffer_, off_t size,
 
   if (inode->deny_write_cnt)
     return 0;
+
+  //grow file
+  off_t eof = offset + size;
+  off_t old_length = inode_length (inode);
+  int old_aligned =  old_length - (old_length % BLOCK_SECTOR_SIZE);
+  int new_start = old_aligned + BLOCK_SECTOR_SIZE;
+  if(eof > old_length){
+    inode->data.length =eof;
+    for(int i = new_start; i < eof; i++){
+      //allocate new space and grow
+       grow_file(i, inode);
+    }
+  }
 
   while (size > 0)
   {
@@ -558,6 +691,7 @@ off_t inode_write_at(struct inode *inode, const void *buffer_, off_t size,
 
   return bytes_written;
 }
+
 
 /* Disables writes to INODE.
    May be called at most once per inode opener. */
