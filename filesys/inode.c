@@ -145,12 +145,15 @@ bool inode_create(block_sector_t sector, off_t length, bool dir)
     disk_inode->magic = INODE_MAGIC;
     disk_inode->is_directory = dir; // added
     //pass in an pointers into free_map_allocate and assign them to blocks
-    if (map_inode_to_sect(sector, disk_inode))
+    if (map_inode_to_sect(sectors, disk_inode))
     {
+      //write the inode to block
+      block_write(fs_device, sector, disk_inode);
       success = true;
     }
       free (disk_inode);
   }
+  
   return success;
 }
 
@@ -179,7 +182,6 @@ bool map_inode_to_sect(block_sector_t sector, struct inode_disk *in_disk)
       block_sector_t *curr_sect = &in_disk->direct[i];
       // allocate one sector
       bool allocat = free_map_allocate(1, curr_sect);
-      
       if (allocat == false)
       {
         return false;
@@ -205,7 +207,6 @@ bool map_inode_to_sect(block_sector_t sector, struct inode_disk *in_disk)
     }
     if (need_double == false)
     {
-
       // directly allocate first
       for (int i = 0; i < NUM_DIRECT; i++)
       {
@@ -404,7 +405,7 @@ struct inode *inode_open(block_sector_t sector)
     return NULL;
 
   /* Initialize. */
-  list_push_front(&open_inodes, &inode->elem);
+  list_push_front(&open_inodes, &inode->elem);  
   inode->sector = sector;
   inode->open_cnt = 1;
   inode->deny_write_cnt = 0;

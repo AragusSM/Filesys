@@ -235,7 +235,7 @@ static bool valid_fd(int fd){
  */
 int open(const char *file) {
   lock_acquire(&filesys_lock);
-  if(file == NULL){
+  if(file == NULL || strlen(file) == 0){
     lock_release(&filesys_lock);
     return -1;
   }
@@ -247,7 +247,11 @@ int open(const char *file) {
     lock_release(&filesys_lock);
     return -1;
   }
+  
   thread_current()->fd_val = fd + 1;
+  if(thread_current()->fd_val == 128){
+    thread_current()->fd_val = 0;
+  }
   thread_current()->fd_list[fd] = open_file;
   lock_release(&filesys_lock);
   return fd;
@@ -359,7 +363,9 @@ void exit(int status){
   }
   printf ("%s: exit(%d)\n", thread_current()->name, status);
   thread_current()->e_status = status;
-  lock_acquire(&filesys_lock);
+  if (!lock_held_by_current_thread(&filesys_lock)) {
+    lock_acquire(&filesys_lock);
+  }
   file_allow_write(thread_current()->curr_file);
   lock_release(&filesys_lock);
   thread_exit();
