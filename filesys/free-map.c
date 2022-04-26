@@ -22,8 +22,23 @@ void free_map_init (void)
   bitmap_mark (free_map, ROOT_DIR_SECTOR);
 }
 
+bool free_map_allocate (size_t cnt, block_sector_t *sectorp)
+{
+  block_sector_t sector = bitmap_scan_and_flip (free_map, 0, cnt, false);
+  if (sector != BITMAP_ERROR && free_map_file != NULL &&
+      !bitmap_write (free_map, free_map_file))
+    {
+      bitmap_set_multiple (free_map, sector, cnt, false);
+      sector = BITMAP_ERROR;
+    }
+  if (sector != BITMAP_ERROR)
+    *sectorp = sector;
+  return sector != BITMAP_ERROR;
+}
+
+
 //helper function to create a allocate a header block
-static block_sector_t create_header(block_sector_t *sectorp, int val){
+/*static block_sector_t create_header(block_sector_t *sectorp, int val){
   block_sector_t* indirect_block = sectorp[val];
       *indirect_block = bitmap_scan_and_flip (free_map, 0, 1, false); 
       if( *indirect_block != BITMAP_ERROR && free_map_file != NULL &&
@@ -35,10 +50,10 @@ static block_sector_t create_header(block_sector_t *sectorp, int val){
         return BITMAP_ERROR;
       }
     return *indirect_block;
-}
+}*/
 
 //helper to allocate direct blocks. Returns array of 512 bytes to buffer if needed
-static bool allocate_direct(size_t cnt, block_sector_t *sectorp, block_sector_t *buffer, bool is_root){
+/*static bool allocate_direct(size_t cnt, block_sector_t *sectorp, block_sector_t *buffer, bool is_root){
     //stores allocated sectors to sector nums in order to unset bits if bitmap error occurs.
     block_sector_t sector_nums[cnt];
     for(int i = 0; i < cnt; i++){
@@ -68,14 +83,14 @@ static bool allocate_direct(size_t cnt, block_sector_t *sectorp, block_sector_t 
       }
     }
     return true;
-}
+}*/
 
 /* Allocates CNT (CHANGED) sectors from the free map and stores
    the first into *SECTORP.
    Returns true if successful, false if not enough
    sectors were available or if the free_map file could not be
    written. */
-bool free_map_allocate (size_t cnt, block_sector_t *sectorp)
+/*bool free_map_allocate (size_t cnt, block_sector_t *sectorp)
 {
   
   if(cnt > NUM_DIRECT){
@@ -172,7 +187,7 @@ bool free_map_allocate (size_t cnt, block_sector_t *sectorp)
     }
   }
   return true;
-}
+}*/
 
 /* Makes CNT sectors starting at SECTOR available for use. */
 void free_map_release (block_sector_t sector, size_t cnt)
@@ -200,9 +215,10 @@ void free_map_close (void) { file_close (free_map_file); }
 void free_map_create (void)
 {
   /* Create inode. */
+  
   if (!inode_create (FREE_MAP_SECTOR, bitmap_file_size (free_map), false))
     PANIC ("free map creation failed");
-
+  
   /* Write bitmap to file. */
   free_map_file = file_open (inode_open (FREE_MAP_SECTOR));
   if (free_map_file == NULL)
