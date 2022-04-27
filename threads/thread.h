@@ -6,7 +6,7 @@
 #include <stdint.h>
 
 #include "threads/synch.h"
-
+#include "filesys/directory.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -26,6 +26,10 @@ typedef int tid_t;
 #define PRI_MIN 0      /* Lowest priority. */
 #define PRI_DEFAULT 31 /* Default priority. */
 #define PRI_MAX 63     /* Highest priority. */
+
+// TODO REMOVE LATER
+// Temporary Variable for VS Code Errors
+#define USERPROG 1
 
 /* A kernel thread or user process.
 
@@ -100,6 +104,10 @@ struct thread
 
   /* Shared between thread.c and synch.c. */
   struct list_elem elem; /* List element. */
+
+// For FILESYS
+  /* Current process directory */
+  struct dir* curr_dir; 
 
 #ifdef USERPROG
    /* Owned by userprog/process.c. */
