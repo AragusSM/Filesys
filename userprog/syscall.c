@@ -1,6 +1,7 @@
 #include "userprog/syscall.h"
 #include <stdio.h>
 #include <syscall-nr.h>
+#include <string.h> // Filesys For strtok 
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "filesys/filesys.h"
@@ -23,7 +24,7 @@ static void check_pointer(void * vaddr );
 static bool valid_fd(int fd);
 void halt(void);
 bool create (const char *file, unsigned initial_size);
-int open(const char *file);
+int open(const char *file /*, struct dir *directory*/);
 pid_t exec(const char *cmd_line);
 int wait(pid_t pid);
 int filesize(int fd);
@@ -36,6 +37,13 @@ bool remove (const char *file);
 struct thread* child_thr(tid_t tid_val);
 void set_parent(struct thread *t, void *aux);
 void get_tids(struct thread *t, void *aux);
+
+// FILESYS method headers
+bool chdir(const char* dir);
+bool mkdir(const char* dir);
+bool readdir(int fd, char *name);
+bool isdir(int fd);
+int inumber(int fd);
 
 // Driver: Joel
 void syscall_init (void)
@@ -101,7 +109,8 @@ static void syscall_handler (struct intr_frame *f UNUSED)
     // Driver: Ashley
     check_pointer( (void *) program [1]);
     const char * file3 = (const char *) program [1];
-    f->eax = open(file3);
+    // Pass in directories too for 5.3.3
+    f->eax = open(file3 /*, thread_current()->curr_dir*/);
     break;
     
   case SYS_FILESIZE:
@@ -146,12 +155,44 @@ static void syscall_handler (struct intr_frame *f UNUSED)
     break;
 
   case SYS_CLOSE:
-   
     check_pointer( (void *) (program + 1));
     int fd6 = program[1];
     close(fd6);
     break;
   
+  // /* FILESYS cases */
+  // case SYS_CHDIR:
+  //   check_pointer( (void *) (program + 1));
+  //   const char* dir_ptr1 = program[1];
+  //   f->eax = chdir(dir_ptr1);
+  //   break;
+
+  // case SYS_MKDIR:
+  //   check_pointer( (void *) (program + 1));
+  //   const char* dir_ptr2 = program[1];
+  //   f->eax = mkdir(dir_ptr2);
+  //   break;
+  
+  // case SYS_READDIR:
+  //   check_pointer( (void *) (program + 1));
+  //   check_pointer( (void *) (program + 2));
+  //   const char* dir_filename = program[1];
+  //   int fd7 = program[2];
+  //   f->eax = readdir(fd7, dir_filename);
+  //   break;
+
+  // case SYS_ISDIR:
+  //   check_pointer( (void *) (program + 1));
+  //   int fd8 = program[1];
+  //   f->eax = isdir(fd8);
+  //   break;
+  
+  // case SYS_INUMBER:
+  //   check_pointer( (void *) (program + 1));
+  //   int fd9 = program[1];
+  //   f->eax = inumber(fd9);
+  //   break;
+
   default:
     break;
   }
@@ -233,7 +274,7 @@ static bool valid_fd(int fd){
   Different file descriptors for a single file are closed independently 
   in separate calls to close and they do not share a file position.
  */
-int open(const char *file) {
+int open(const char *file /*, struct dir* directory*/) {
   lock_acquire(&filesys_lock);
   if(file == NULL || strlen(file) == 0){
     lock_release(&filesys_lock);
@@ -579,3 +620,94 @@ bool remove (const char *file){
   return removed;
 }
 
+/* Comment headers are from Pintos Guide 5.3.3 */
+
+/*
+  Driver: All of Us 
+  Changes the current working directory of the process to dir, which may be 
+  relative or absolute. Returns true if successful, false on failure. 
+*/
+bool chdir(const char* dir) {
+  return false;
+}
+
+/*
+  Creates the directory named dir, which may be relative or absolute. 
+  Returns true if successful, false on failure. Fails if dir already exists 
+  or if any directory name in dir, besides the last, does not already exist. 
+  That is, mkdir("/a/b/c") succeeds only if "/a/b" already exists and 
+  "/a/b/c" does not. 
+*/
+bool mkdir(const char* dir) {
+  return false;
+}
+/*
+  Reads a directory entry from file descriptor fd, which must represent 
+  a directory. If successful, stores the null-terminated file name in name, 
+  which must have room for READDIR_MAX_LEN + 1 bytes, and returns true. 
+  If no entries are left in the directory, returns false.
+
+  "." and ".." should not be returned by readdir.
+
+  If the directory changes while it is open, then it is acceptable for some 
+  entries not to be read at all or to be read multiple times. Otherwise, each 
+  directory entry should be read once, in any order.
+
+  READDIR_MAX_LEN is defined in "lib/user/syscall.h". If your file system 
+  supports longer file names than the basic file system, you should increase 
+  this value from the default of 14.
+*/
+bool readdir(int fd, char *name) {
+  return false;
+}
+
+/*  
+  Returns true if fd represents a directory, false if 
+  it represents an ordinary file. 
+*/
+bool isdir(int fd) {
+  return false;
+}
+
+/*
+  Returns the inode number of the inode associated with fd, which may 
+  represent an ordinary file or a directory.
+
+  An inode number persistently identifies a file or directory. It is 
+  unique during the file's existence. In Pintos, the sector number of 
+  the inode is suitable for use as an inode number.
+*/
+int inumber(int fd) {
+  return 0;
+}
+
+/* Helper method that gives the correct file name.
+   
+    Update the existing system calls so that, anywhere a 
+    file name is provided by the caller, an absolute or 
+    relative path name may used. 
+    
+    The directory separator 
+    character is forward slash ("/"). 
+    
+    You must also support 
+    special file names "." and "..", which have the same meanings as they do in Unix.
+   
+   Params: file name passed in. */
+
+/* Pseudocode 
+  Three cases: 
+  Case 1
+  Special character '.'
+
+  Case 2
+  Special characters ".."
+
+  Case 3
+  Ordinary Files
+    Use strtok_r delimiter to parse through.
+*/
+
+// char* exact_file_name(const char* given_filename) {
+  
+// }

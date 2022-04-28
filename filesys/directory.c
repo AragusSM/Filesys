@@ -6,11 +6,16 @@
 #include "filesys/inode.h"
 #include "threads/malloc.h"
 
+// Added for per_process_lock
+#include "threads/synch.h"
+
 /* A directory. */
 struct dir
 {
   struct inode *inode; /* Backing store. */
   off_t pos;           /* Current position. */
+  // Modified for filesys
+  // struct lock pd_re_wr_lock; /* Per dir lock to solve readers/writers. */
 };
 
 /* A single directory entry. */
@@ -19,6 +24,9 @@ struct dir_entry
   block_sector_t inode_sector; /* Sector number of header. */
   char name[NAME_MAX + 1];     /* Null terminated file name. */
   bool in_use;                 /* In use or free? */
+  // Modified for filesys
+  // struct file* dir_file_ptr; /* Allows directory entry to point to other files. */
+  // struct dir* dir_ptr; /* Allows directory entry to point to other directories. */
 };
 
 /* Creates a directory with space for ENTRY_CNT entries in the
@@ -37,6 +45,8 @@ struct dir *dir_open (struct inode *inode)
     {
       dir->inode = inode;
       dir->pos = 0;
+      // Init pd lock
+      // lock_init(&dir->pd_re_wr_lock);
       return dir;
     }
   else
@@ -67,6 +77,8 @@ void dir_close (struct dir *dir)
   if (dir != NULL)
     {
       inode_close (dir->inode);
+      // Assumption - TODO check this.s
+      // free ((void *) &dir->pd_re_wr_lock);
       free (dir);
     }
 }
@@ -87,7 +99,7 @@ static bool lookup (const struct dir *dir, const char *name,
 
   ASSERT (dir != NULL);
   ASSERT (name != NULL);
-
+  // Given code
   for (ofs = 0; inode_read_at (dir->inode, &e, sizeof e, ofs) == sizeof e;
        ofs += sizeof e)
     if (e.in_use && !strcmp (name, e.name))
