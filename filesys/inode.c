@@ -295,6 +295,8 @@ bool map_inode_to_sect(block_sector_t sector, struct inode_disk *in_disk)
         num_dir_double -= num_alloc;
 
       }
+      //write doubly indirect
+      block_write (fs_device, &in_disk->dbl_indirect, indir_blocks);
 
       int num_left_double  = sector - num_allocated_dbl;
       if(num_left_double == 0){
