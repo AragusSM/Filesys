@@ -185,6 +185,7 @@ bool map_inode_to_sect(block_sector_t sector, struct inode_disk *in_disk)
     if (free_map_allocate(1, curr_sect)) {
       char* zero = calloc(1, BLOCK_SECTOR_SIZE);
       block_write(fs_device, *curr_sect, zero);
+      free(zero);
     }
     else {
       return false;
@@ -215,6 +216,7 @@ bool map_inode_to_sect(block_sector_t sector, struct inode_disk *in_disk)
       if (free_map_allocate(1, &in_disk->sgl_indirect)) {
         char* zeros = calloc(1, BLOCK_SECTOR_SIZE);
         block_write(fs_device, in_disk->sgl_indirect, zeros);
+        free(zeros);
       }
       else {
         return false;
@@ -228,6 +230,7 @@ bool map_inode_to_sect(block_sector_t sector, struct inode_disk *in_disk)
         }
         char* zeros = calloc(1, BLOCK_SECTOR_SIZE);
         block_write(fs_device, direct[i], zeros);
+        free(zeros);
       }
       // write the actual singly indirect block now
       block_write(fs_device, in_disk->sgl_indirect, direct);
@@ -251,6 +254,7 @@ bool map_inode_to_sect(block_sector_t sector, struct inode_disk *in_disk)
       {
         char* zeros2 = calloc(1, BLOCK_SECTOR_SIZE);
         block_write(fs_device, in_disk->dbl_indirect, zeros2);
+        free(zeros2);
       }
       else
       {
@@ -462,7 +466,7 @@ static bool grow_file(int original, off_t pos, struct inode *inode){
   if (original + num_dir_needed > NUM_TOTAL){
     return false;
   }
-  if (original < NUM_DIRECT){
+  if (original + 1 < NUM_DIRECT){
     //both single and double indirect not allocated
     int num_left = NUM_DIRECT - (original + 1);
     int num_ind = num_dir_needed - num_left;
@@ -481,6 +485,7 @@ static bool grow_file(int original, off_t pos, struct inode *inode){
         }
         char* zero = calloc(1, BLOCK_SECTOR_SIZE);
         block_write(fs_device, *curr_sect, zero);
+        free(zero);
       }
     }else if (num_dub == 0){
       //first write num left
@@ -493,6 +498,7 @@ static bool grow_file(int original, off_t pos, struct inode *inode){
         }
         char* zero = calloc(1, BLOCK_SECTOR_SIZE);
         block_write(fs_device, *curr_sect, zero);
+        free(zero);
       }
       //now write the rest into indirect block
       block_sector_t direct[BLOCKS_PER_INDIRECT];
@@ -501,6 +507,7 @@ static bool grow_file(int original, off_t pos, struct inode *inode){
       {
         char* zeros = calloc(1, BLOCK_SECTOR_SIZE);
         block_write(fs_device, inode->data.sgl_indirect, zeros);
+        free(zeros);
       }
       else
       {
@@ -515,6 +522,7 @@ static bool grow_file(int original, off_t pos, struct inode *inode){
         }
         char* zeros = calloc(1, BLOCK_SECTOR_SIZE);
         block_write(fs_device, direct[i], zeros);
+        free(zeros);
       }
       // write the actual singly indirect block now
       block_write(fs_device, inode->data.sgl_indirect, direct);
@@ -530,6 +538,7 @@ static bool grow_file(int original, off_t pos, struct inode *inode){
         }
         char* zero = calloc(1, BLOCK_SECTOR_SIZE);
         block_write(fs_device, *curr_sect, zero);
+        free(zero);
       }
       //now write the rest into indirect block
       block_sector_t direct[BLOCKS_PER_INDIRECT];
@@ -538,6 +547,7 @@ static bool grow_file(int original, off_t pos, struct inode *inode){
       {
         char* zeros = calloc(1, BLOCK_SECTOR_SIZE);
         block_write(fs_device, inode->data.sgl_indirect, zeros);
+        free(zeros);
       }
       else
       {
@@ -552,6 +562,7 @@ static bool grow_file(int original, off_t pos, struct inode *inode){
         }
         char* zeros = calloc(1, BLOCK_SECTOR_SIZE);
         block_write(fs_device, direct[i], zeros);
+        free(zeros);
       }
       // write the actual singly indirect block now
       block_write(fs_device, inode->data.sgl_indirect, direct);
@@ -560,6 +571,7 @@ static bool grow_file(int original, off_t pos, struct inode *inode){
       {
         char* zeros2 = calloc(1, BLOCK_SECTOR_SIZE);
         block_write(fs_device, inode->data.dbl_indirect, zeros2);
+        free(zeros2);
       }
       else
       {
@@ -592,6 +604,7 @@ static bool grow_file(int original, off_t pos, struct inode *inode){
         {
           char* zeros_dbl = calloc(1, BLOCK_SECTOR_SIZE);
           block_write(fs_device, indir_blocks[i], zeros_dbl);
+          free(zeros_dbl);
         }
         else
         {
@@ -608,6 +621,7 @@ static bool grow_file(int original, off_t pos, struct inode *inode){
          }
           char* zeros_dbl2 = calloc(1, BLOCK_SECTOR_SIZE);
           block_write(fs_device, direct_dbl[j], zeros_dbl2);
+          free(zeros_dbl2);
         }
          block_write (fs_device, indir_blocks[i], direct_dbl);
 
@@ -625,7 +639,18 @@ static bool grow_file(int original, off_t pos, struct inode *inode){
           return false;
         }
     }
-  }else if (original < NUM_DIRECT + BLOCKS_PER_INDIRECT){
+  }else if (original + 1 < NUM_DIRECT + BLOCKS_PER_INDIRECT){
+    //if the original block is one less than first indirect, need to map indirect
+    if(original + 1 == NUM_DIRECT){
+      if (free_map_allocate(1, &inode->data.sgl_indirect)) {
+        char* zeros = calloc(1, BLOCK_SECTOR_SIZE);
+        block_write(fs_device, inode->data.sgl_indirect, zeros);
+        free(zeros);
+      }
+      else {
+        return false;
+      }
+    }
     //single indirect allocated but double indirect not
     //both single and double indirect not allocated
     int num_left = (NUM_DIRECT + BLOCKS_PER_INDIRECT) - (original + 1);
@@ -638,7 +663,8 @@ static bool grow_file(int original, off_t pos, struct inode *inode){
       block_sector_t direct[BLOCKS_PER_INDIRECT];
       block_read(fs_device, inode->data.sgl_indirect, direct);
       // indirect block should already be allocated
-      for (int i = original + 1; i < num_left; i++)
+      int start = (original + 1) - NUM_DIRECT;
+      for (int i = start; i <= start + num_left; i++)
       {
         // now allocate the direct blocks in the singly indirect
         if (! free_map_allocate(1, &direct[i]))
@@ -647,11 +673,12 @@ static bool grow_file(int original, off_t pos, struct inode *inode){
         }
         char* zeros = calloc(1, BLOCK_SECTOR_SIZE);
         block_write(fs_device, direct[i], zeros);
+        free(zeros);
       }
       // write the actual singly indirect block now
       block_write(fs_device, inode->data.sgl_indirect, direct);
     }else{
-      //first allocate direct
+      //first allocate single direct
       block_sector_t direct[BLOCKS_PER_INDIRECT];
       block_read(fs_device, inode->data.sgl_indirect, direct);
       // indirect block should already be allocated
@@ -664,6 +691,7 @@ static bool grow_file(int original, off_t pos, struct inode *inode){
         }
         char* zeros = calloc(1, BLOCK_SECTOR_SIZE);
         block_write(fs_device, direct[i], zeros);
+        free(zeros);
       }
       // write the actual singly indirect block now
       block_write(fs_device, inode->data.sgl_indirect, direct);
@@ -673,6 +701,7 @@ static bool grow_file(int original, off_t pos, struct inode *inode){
       {
         char* zeros2 = calloc(1, BLOCK_SECTOR_SIZE);
         block_write(fs_device, inode->data.dbl_indirect, zeros2);
+        free(zeros2);
       }
       else
       {
@@ -705,6 +734,7 @@ static bool grow_file(int original, off_t pos, struct inode *inode){
         {
           char* zeros_dbl = calloc(1, BLOCK_SECTOR_SIZE);
           block_write(fs_device, indir_blocks[i], zeros_dbl);
+          free(zeros_dbl);
         }
         else
         {
@@ -721,6 +751,7 @@ static bool grow_file(int original, off_t pos, struct inode *inode){
          }
           char* zeros_dbl2 = calloc(1, BLOCK_SECTOR_SIZE);
           block_write(fs_device, direct_dbl[j], zeros_dbl2);
+          free(zeros_dbl2);
         }
          block_write (fs_device, indir_blocks[i], direct_dbl);
 
@@ -739,10 +770,21 @@ static bool grow_file(int original, off_t pos, struct inode *inode){
         }
     }
   }else{
+    //if the next block we need to allocate is the first dbl-indirect block allocate the pointer
+    if(original + 1 == NUM_DIRECT){
+      if (free_map_allocate(1, &inode->data.dbl_indirect)) {
+        char* zeros = calloc(1, BLOCK_SECTOR_SIZE);
+        block_write(fs_device, inode->data.dbl_indirect, zeros);
+        free(zeros);
+      }
+      else {
+        return false;
+      }
+    }
     //double indirect allocated already
     int num_left = NUM_TOTAL - (original + 1);
-    int num_dub = num_dir_needed - num_left;
-    int start = ((original) - (NUM_DIRECT + BLOCKS_PER_INDIRECT)) / BLOCKS_PER_INDIRECT;
+    int num_dub = num_dir_needed;
+    int start = ((original + 1) - (NUM_DIRECT + BLOCKS_PER_INDIRECT)) / BLOCKS_PER_INDIRECT;
 
       block_sector_t indir_blocks[BLOCKS_PER_INDIRECT];
       block_read (fs_device, inode->data.dbl_indirect, indir_blocks);
@@ -757,7 +799,8 @@ static bool grow_file(int original, off_t pos, struct inode *inode){
 
         // allocate singly indir
         block_sector_t direct_dbl[BLOCKS_PER_INDIRECT];
-        if(i == start){
+        if(i == start && ((original + 1) - (NUM_DIRECT + BLOCKS_PER_INDIRECT)) % BLOCKS_PER_INDIRECT != 0){
+          //indirect block exists
           block_read(fs_device, indir_blocks[i], direct_dbl);
         }else{
           // allocate index block
@@ -765,6 +808,7 @@ static bool grow_file(int original, off_t pos, struct inode *inode){
           {
             char* zeros_dbl = calloc(1, BLOCK_SECTOR_SIZE);
             block_write(fs_device, indir_blocks[i], zeros_dbl);
+            free(zeros_dbl);
           }
           else
           {
@@ -785,6 +829,7 @@ static bool grow_file(int original, off_t pos, struct inode *inode){
           char* zeros_dbl2 = calloc(1, BLOCK_SECTOR_SIZE);
           // WE got lucky.
           block_write(fs_device, direct_dbl[j], zeros_dbl2);
+          free(zeros_dbl2);
         }
          block_write (fs_device, indir_blocks[i], direct_dbl);
 
@@ -834,8 +879,6 @@ off_t inode_write_at(struct inode *inode, const void *buffer_, off_t size,
   {
     /* Sector to write, starting byte offset within sector. */
     block_sector_t sector_idx = byte_to_sector(inode, offset);
-    //printf("%i\n", size);
-    //printf("%i\n", sector_idx);
     int sector_ofs = offset % BLOCK_SECTOR_SIZE;
 
     /* Bytes left in inode, bytes left in sector, lesser of the two. */
