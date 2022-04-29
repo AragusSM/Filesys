@@ -11,8 +11,11 @@
 #include <user/syscall.h>
 #include "threads/vaddr.h"
 #include "filesys/file.h"
+#include "filesys/inode.h"
+
 #include "devices/input.h"
 #include "devices/shutdown.h"
+
 
 // Create a global lock that can be accessed in both
 // Syscall.c and process.c
@@ -158,6 +161,28 @@ static void syscall_handler (struct intr_frame *f UNUSED)
     check_pointer( (void *) (program + 1));
     int fd6 = program[1];
     close(fd6);
+    break;
+
+  case SYS_READDIR:
+    check_pointer( (void *) (program + 1));
+    check_pointer( (void *) (program + 2));
+    const char* dir_filename = program[1];
+    int fd7 = program[2];
+    f->eax = readdir(fd7, dir_filename);
+    break;
+
+
+  case SYS_ISDIR:
+    check_pointer( (void *) (program + 1));
+    int fd8 = program[1];
+    f->eax = isdir(fd8);
+    break;
+  
+
+  case SYS_INUMBER:
+    check_pointer( (void *) (program + 1));
+    int fd9 = (int) program[1];
+    f->eax = inumber(fd9);
     break;
   
   // /* FILESYS cases */
@@ -639,6 +664,12 @@ bool chdir(const char* dir) {
   "/a/b/c" does not. 
 */
 bool mkdir(const char* dir) {
+  char * dir_path = malloc(strlen(dir) + 1);
+  char * sub_dir_path = malloc(strlen(dir) + 1);
+  if(dir_path == NULL || sub_dir_path == NULL){
+    return false;
+  }
+
   return false;
 }
 /*
@@ -658,7 +689,34 @@ bool mkdir(const char* dir) {
   this value from the default of 14.
 */
 bool readdir(int fd, char *name) {
-  return false;
+  struct file * curr_file = thread_current()->fd_list[fd];
+   //error checking
+  if(curr_file == NULL){
+    return false;
+  }
+
+  struct dir * curr_dir = (struct dir *) curr_file;
+  struct inode *curr_inode = dir_get_inode(curr_dir);
+  //error checking
+  if(curr_inode == NULL){
+    return false;
+  }
+  //need to check if is subdir
+  bool sub_d = is_subdir(curr_inode);
+  if(!sub_d){
+    return false;
+  }
+
+  bool continue_readdir = dir_readdir(curr_dir, name);
+  while(continue_readdir == true){
+    if((strcmp(name, ".") != 0) &&  strcmp(name, "..") != 0){
+      continue_readdir = false;
+    }
+    else{
+      continue_readdir =  dir_readdir(curr_dir, name);
+    }
+  }
+  return continue_readdir;
 }
 
 /*  
@@ -666,7 +724,14 @@ bool readdir(int fd, char *name) {
   it represents an ordinary file. 
 */
 bool isdir(int fd) {
-  return false;
+  struct file * curr_file = thread_current()->fd_list[fd];
+  //error checking
+  if(curr_file == NULL){
+    return -1;
+  }
+  struct inode * inode = file_get_inode(curr_file);
+  bool is_dir = is_subdir(inode);
+  return is_dir;
 }
 
 /*
@@ -678,7 +743,21 @@ bool isdir(int fd) {
   the inode is suitable for use as an inode number.
 */
 int inumber(int fd) {
-  return 0;
+  struct file * curr_file = thread_current()->fd_list[fd];
+  //error checking
+  if(curr_file == NULL){
+    return -1;
+  }
+  struct inode * inode = file_get_inode(curr_file);
+  //error checking
+  int inum = -1;
+  if(inode == NULL){
+    return inum;
+  }
+  else{
+    inum =  inode_get_inumber(inode);
+    return inum;
+  }
 }
 
 /* Helper method that gives the correct file name.
