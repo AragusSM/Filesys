@@ -14,6 +14,7 @@ struct dir
 {
   struct inode *inode; /* Backing store. */
   off_t pos;           /* Current position. */
+  bool is_empty; /* Tells us if this directory can be removed, else it cannot be. */
   // Modified for filesys
   // struct lock pd_re_wr_lock; /* Per dir lock to solve readers/writers. */
 };

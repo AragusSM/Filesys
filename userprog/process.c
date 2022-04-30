@@ -84,8 +84,14 @@ tid_t process_execute (const char *file_name)
   
   // Obtained child here.
   struct thread *child = child_thread(tid);
-  // Wait for child to signal its been loaded
-  // And waiting for process to start
+  
+  // Wait for child to signal its loading
+  // and wait for process start
+
+  // Filesys
+  // Child thread inherits parent's current directory.
+  child->curr_dir = thread_current()->curr_dir;
+  
   sema_down(&child->load_val);
 
   // No child or failed to load

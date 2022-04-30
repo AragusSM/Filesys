@@ -45,6 +45,7 @@ bool readdir(int fd, char *name);
 bool isdir(int fd);
 int inumber(int fd);
 
+
 // Driver: Joel
 void syscall_init (void)
 {
@@ -680,34 +681,3 @@ bool isdir(int fd) {
 int inumber(int fd) {
   return 0;
 }
-
-/* Helper method that gives the correct file name.
-   
-    Update the existing system calls so that, anywhere a 
-    file name is provided by the caller, an absolute or 
-    relative path name may used. 
-    
-    The directory separator 
-    character is forward slash ("/"). 
-    
-    You must also support 
-    special file names "." and "..", which have the same meanings as they do in Unix.
-   
-   Params: file name passed in. */
-
-/* Pseudocode 
-  Three cases: 
-  Case 1
-  Special character '.'
-
-  Case 2
-  Special characters ".."
-
-  Case 3
-  Ordinary Files
-    Use strtok_r delimiter to parse through.
-*/
-
-// char* exact_file_name(const char* given_filename) {
-  
-// }
