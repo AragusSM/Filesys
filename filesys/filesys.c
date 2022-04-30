@@ -6,6 +6,7 @@
 #include "filesys/free-map.h"
 #include "filesys/inode.h"
 #include "filesys/directory.h"
+#include "threads/thread.h"
 /* Partition that contains the file system. */
 struct block *fs_device;
 
@@ -20,7 +21,7 @@ bool fs_isdir(int fd);
 int fs_inumber(int fd);
 
 
-struct dir* open_dir_rte_abs (const char* rte_abs_path);
+//struct dir* open_dir_rte_abs (const char* rte_abs_path);
 // Helper methods to save file_path and directories
 // into buffers so that we can check more conditions.
 void save_file (const char* name, char* file_path);
@@ -36,10 +37,10 @@ struct dir* open_dir_rte_abs (const char* rte_abs_path) {
   strlcpy(rte_abs_copy, rte_abs_path, path_len + 1);
   // Checking if it is an absolute or relative path
   // If it is absolute, it will have the root '/',
-  if (rte_abs_copy[0] == '/' || ! thread_current ()->cwd) {
+  if (rte_abs_copy[0] == '/' || ! thread_current()->curr_dir) {
     curr_dir = dir_open_root();
   } else {
-    curr_dir = dir_reopen (thread_current ()->cwd);
+    curr_dir = dir_reopen (thread_current()->curr_dir);
   }
   // Now we tokenize
   char* save_ptr = NULL;
@@ -88,14 +89,14 @@ void save_file(const char* name, char* file_path) {
   char* fpath_copy = calloc(1, (path_len + 1));
   if (! fpath_copy)
     return NULL;
-  
+  strlcpy(fpath_copy, file_path, path_len + 1);
   char* save_ptr = NULL;
   char* prev_token = ""; 
   char* curr_token = strtok_r(fpath_copy, "/", &save_ptr);
   int token_size;
   while (curr_token != NULL) {
     prev_token = curr_token;
-    curr_token = strtok_r(fpath_copy, "/", &save_ptr);
+    curr_token = strtok_r(NULL, "/", &save_ptr);
   }
   // Copying over the file path
   memcpy (file_path, prev_token, strlen(prev_token) + 1);
@@ -113,7 +114,7 @@ void save_dir (const char* name, char* dir_path) {
 
   if (path_len > 0 && dpath_copy[0] == '/') {
     dir_path[0] = '/';  
-    *dir_path++;
+    dir_path++;
   }
   char* save_ptr = NULL;
   char* prev_token = "";
@@ -126,7 +127,7 @@ void save_dir (const char* name, char* dir_path) {
       dir_path += strlen(prev_token) + 1;
     }
     prev_token = curr_token;
-    curr_token = strtok_r(dpath_copy, "/", &save_ptr);
+    curr_token = strtok_r(NULL, "/", &save_ptr);
   }
   *dir_path = '\0';
   // Free what you calloc
@@ -180,8 +181,8 @@ bool filesys_create (const char *name, off_t initial_size)
   dir_close (dir);
 
   // Freeing dynamically allocated memory.
-  free(file_name);
-  free(dir_name);
+  free(file_path);
+  free(dir_path);
   return success;
 }
 

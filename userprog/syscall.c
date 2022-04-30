@@ -665,11 +665,16 @@ bool chdir(const char* dir) {
   "/a/b/c" does not. 
 */
 bool mkdir(const char* dir) {
-  char * dir_path = malloc(strlen(dir) + 1);
-  char * sub_dir_path = malloc(strlen(dir) + 1);
-  if(dir_path == NULL || sub_dir_path == NULL){
+  if(strlen(dir) == 0){
     return false;
   }
+  struct dir *target = open_dir_rte_abs(dir);
+  if(target){
+    //directory exists
+    return false;
+  }
+  //if is null we can create the current directory
+
 
   return false;
 }
