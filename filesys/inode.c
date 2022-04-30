@@ -29,7 +29,7 @@ struct inode_disk
   block_sector_t direct[NUM_DIRECT]; //array of 120 pointers to sectors aka direct blocks
   block_sector_t sgl_indirect;     //1 single indirect
   block_sector_t dbl_indirect;    //1 doubly indirect
-  int is_directory; //should be a bool but modified for alignment purposes
+  int is_sub_directory; //should be a bool but modified for alignment purposes
 };
 
 
@@ -54,6 +54,12 @@ struct inode
   struct inode_disk data; /* Inode content. */
 };
 
+
+bool is_subdir (const struct inode *inode)
+{  
+  bool is_sub_d = (bool) inode->data.is_sub_directory;
+  return is_sub_d;
+}
 
 
 // /* Returns the block device sector that contains byte offset POS
@@ -151,7 +157,7 @@ bool inode_create(block_sector_t sector, off_t length, bool dir)
     size_t sectors = bytes_to_sectors(length);
     disk_inode->length = length;
     disk_inode->magic = INODE_MAGIC;
-    disk_inode->is_directory = dir; // added
+    disk_inode->is_sub_directory = dir; // added
     //pass in an pointers into free_map_allocate and assign them to blocks
     if (map_inode_to_sect(sectors, disk_inode))
     {

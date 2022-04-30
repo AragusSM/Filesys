@@ -200,6 +200,32 @@ bool dir_remove (struct dir *dir, const char *name)
   if (inode == NULL)
     goto done;
 
+  //ADDED THIS
+  if (is_subdir(inode))
+  {
+    struct dir_entry dir_ent;
+    struct dir * open_dir = dir_open (inode);
+    bool found = false;
+    bool empty_dir = true;
+    int num_period = 2;
+    off_t offset = (sizeof dir_ent) * num_period;
+    
+    while(inode_read_at (dir->inode, &dir_ent, sizeof dir_ent, offset) == sizeof dir_ent && !found){
+      bool in_use = dir_ent.in_use;
+      if(in_use == true){
+        empty_dir = false;
+        found = true;
+      }
+      offset += sizeof dir_ent;
+    }
+
+    dir_close (open_dir);
+    if (empty_dir == false){
+       goto done;
+    }
+  }
+  
+
   /* Erase directory entry. */
   e.in_use = false;
   if (inode_write_at (dir->inode, &e, sizeof e, ofs) != sizeof e)
