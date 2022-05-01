@@ -402,6 +402,10 @@ void inode_remove(struct inode *inode)
   inode->removed = true;
 }
 
+bool inode_removed(struct inode *inode){
+  return inode->removed;
+}
+
 /* Reads SIZE bytes from INODE into BUFFER, starting at position OFFSET.
    Returns the number of bytes actually read, which may be less
    than SIZE if an error occurs or end of file is reached. */
@@ -411,11 +415,11 @@ off_t inode_read_at(struct inode *inode, void *buffer_, off_t size,
   uint8_t *buffer = buffer_;
   off_t bytes_read = 0;
   uint8_t *bounce = NULL;
-
   while (size > 0)
   {
     /* Disk sector to read, starting byte offset within sector. */
     block_sector_t sector_idx = byte_to_sector(inode, offset);
+    
     int sector_ofs = offset % BLOCK_SECTOR_SIZE;
 
     /* Bytes left in inode, bytes left in sector, lesser of the two. */

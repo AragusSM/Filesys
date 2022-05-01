@@ -187,17 +187,17 @@ static void syscall_handler (struct intr_frame *f UNUSED)
     break;
   
   // /* FILESYS cases */
-  // case SYS_CHDIR:
-  //   check_pointer( (void *) (program + 1));
-  //   const char* dir_ptr1 = program[1];
-  //   f->eax = chdir(dir_ptr1);
-  //   break;
+  case SYS_CHDIR:
+    check_pointer( (void *) (program + 1));
+    const char* dir_ptr1 = program[1];
+    f->eax = chdir(dir_ptr1);
+    break;
 
-  // case SYS_MKDIR:
-  //   check_pointer( (void *) (program + 1));
-  //   const char* dir_ptr2 = program[1];
-  //   f->eax = mkdir(dir_ptr2);
-  //   break;
+  case SYS_MKDIR:
+    check_pointer( (void *) (program + 1));
+    const char* dir_ptr2 = program[1];
+    f->eax = mkdir(dir_ptr2);
+    break;
   
   // case SYS_READDIR:
   //   check_pointer( (void *) (program + 1));
@@ -654,7 +654,22 @@ bool remove (const char *file){
   relative or absolute. Returns true if successful, false on failure. 
 */
 bool chdir(const char* dir) {
-  return false;
+  if (!dir || strlen(dir) == 0)
+  {
+    return false;
+  }
+  block_sector_t *inode = NULL;
+  if(thread_current()->curr_dir){
+    if(!dir_lookup(thread_current()->curr_dir, dir, &inode)){
+      return false;
+    }
+  }else{
+    if(!dir_lookup(dir_open_root(), dir, &inode)){
+      return false;
+    }
+  }
+  thread_current()->curr_dir = dir_open(inode);
+  return true;
 }
 
 /*
@@ -673,10 +688,47 @@ bool mkdir(const char* dir) {
     //directory exists
     return false;
   }
-  //if is null we can create the current directory
-
-
-  return false;
+  //check that the previous directory exists
+  int index = strlen(dir) - 1;
+  while(index >= 0 && dir[index] != '/'){
+    index--;
+  }
+  index++;
+  //just create the directory in root or thread's current directory
+  if(index == 1 || index == 0){
+    block_sector_t new_dir = 0;
+    if(!free_map_allocate (1, &new_dir) || !dir_create(new_dir, 16)){
+      return false;
+    }
+    char *name = index == 1 ? dir + 1 : dir;
+    if(index == 0 && thread_current()->curr_dir != NULL){
+      if(!dir_add(thread_current()->curr_dir, name, new_dir)){
+        return false;
+      }
+    }else{
+      if(!dir_add(dir_open_root(), name, new_dir)){
+        return false;
+      }
+    }
+    return true;
+  }
+  //else need to check it exists
+  char *prev_name = "";
+  strlcpy(prev_name, dir, index);
+  target = open_dir_rte_abs(prev_name);
+  if(!target){
+    //directory does not exist
+    return false;
+  }
+  //allocate into target
+  block_sector_t new_dir = 0;
+  if(!free_map_allocate (1, &new_dir) || !dir_create(new_dir, 16)){
+    return false;
+  }
+  if(!dir_add(target, dir + index, new_dir)){
+    return false;
+  }
+  return true;
 }
 /*
   Reads a directory entry from file descriptor fd, which must represent 

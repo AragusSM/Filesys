@@ -30,6 +30,9 @@ void save_dir (const char* name, char* dir_path);
 // Handles absolute and relative paths.
 struct dir* open_dir_rte_abs (const char* rte_abs_path) {
   int path_len = strlen (rte_abs_path);
+  if(path_len == 0){
+    return thread_current()->curr_dir ? thread_current()->curr_dir : dir_open_root();
+  }
   char *rte_abs_copy = calloc(1, (path_len + 1));
   if (! rte_abs_copy)
     return NULL;
@@ -40,7 +43,7 @@ struct dir* open_dir_rte_abs (const char* rte_abs_path) {
   if (rte_abs_copy[0] == '/' || ! thread_current()->curr_dir) {
     curr_dir = dir_open_root();
   } else {
-    curr_dir = dir_reopen (thread_current()->curr_dir);
+    curr_dir = dir_reopen(thread_current()->curr_dir);
   }
   // Now we tokenize
   char* save_ptr = NULL;
@@ -54,7 +57,6 @@ struct dir* open_dir_rte_abs (const char* rte_abs_path) {
       free (rte_abs_copy);
       return NULL;
     }
-    
     struct dir* d_next = dir_open(i_next);
     if (! d_next) {
       // Open inode failed
@@ -99,6 +101,7 @@ void save_file(const char* name, char* file_path) {
     curr_token = strtok_r(NULL, "/", &save_ptr);
   }
   // Copying over the file path
+  
   memcpy (file_path, prev_token, strlen(prev_token) + 1);
   
   // Freeing what you calloc
@@ -111,7 +114,7 @@ void save_dir (const char* name, char* dir_path) {
   char* dpath_copy = calloc(1, (path_len + 1));
   if (! dpath_copy)
     return NULL;
-
+  strlcpy(dpath_copy, dir_path, path_len + 1);
   if (path_len > 0 && dpath_copy[0] == '/') {
     dir_path[0] = '/';  
     dir_path++;
@@ -170,12 +173,20 @@ bool filesys_create (const char *name, off_t initial_size)
   if (file_path == NULL || dir_path == NULL) {
     return false;
   }
-  struct dir *dir = dir_open_root ();
+  
   save_file(name, file_path);
   save_dir(name, dir_path);
+  int index = strlen(name) - 1;
+  while(index >= 0 && name[index] != '/'){
+    index--;
+  }
+  index++;
+  strlcpy(dir_path, name, index);
+  strlcpy(file_path, name + index, (name_length + 1) - index);
+  struct dir *dir = open_dir_rte_abs(dir_path);
   bool success = (dir != NULL && free_map_allocate (1, &inode_sector) &&
                   inode_create (inode_sector, initial_size, false) &&
-                  dir_add (dir, name, inode_sector));
+                  dir_add (dir, file_path, inode_sector));
   if (!success && inode_sector != 0)
     free_map_release (inode_sector, 1);
   dir_close (dir);
@@ -193,7 +204,12 @@ bool filesys_create (const char *name, off_t initial_size)
    or if an internal memory allocation fails. */
 struct file *filesys_open (const char *name)
 {
-  struct dir *dir = dir_open_root ();
+  struct dir *dir = NULL;
+  if(thread_current()->curr_dir){
+    dir = thread_current()->curr_dir;
+  }else{
+    dir = dir_open_root ();
+  }
   struct inode *inode = NULL;
 
   if (dir != NULL)
