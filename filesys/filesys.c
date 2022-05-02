@@ -205,16 +205,28 @@ bool filesys_create (const char *name, off_t initial_size)
 struct file *filesys_open (const char *name)
 {
   struct dir *dir = NULL;
-  if(thread_current()->curr_dir){
+  /*if(thread_current()->curr_dir){
     dir = thread_current()->curr_dir;
   }else{
     dir = dir_open_root ();
-  }
+  }*/
   struct inode *inode = NULL;
-
+  int name_length = strlen(name);
+  int index = strlen(name) - 1;
+  while(index >= 0 && name[index] != '/'){
+    index--;
+  }
+  index++;
+  char* dir_path = calloc(1, name_length + 1);
+  char* file_path = calloc(1, name_length + 1);
+  strlcpy(dir_path, name, index);
+  strlcpy(file_path, name + index, (name_length + 1) - index);
+  dir = (open_dir_rte_abs(dir_path));
+  free(dir_path);
   if (dir != NULL)
-    dir_lookup (dir, name, &inode);
+    dir_lookup (dir, file_path, &inode);
   dir_close (dir);
+  free(file_path);
   return file_open (inode);
 }
 

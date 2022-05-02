@@ -712,10 +712,12 @@ bool mkdir(const char* dir) {
     }
     return true;
   }
+  
   //else need to check it exists
-  char *prev_name = "";
+  char *prev_name = calloc(1, strlen(dir) + 1);
   strlcpy(prev_name, dir, index);
   target = open_dir_rte_abs(prev_name);
+  free(prev_name);
   if(!target){
     //directory does not exist
     return false;
