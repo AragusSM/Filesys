@@ -45,11 +45,10 @@ void test_main (void)
       /* Create directory. */
       snprintf (dir_name, sizeof dir_name, "dir%d", i);
       if (!mkdir (dir_name))
-        {
+        { 
           CHECK (remove (file_name), "remove \"%s\"", file_name);
           break;
         }
-
       /* Check for file and directory. */
       CHECK ((fd = open (".")) > 1, "open \".\"");
       CHECK (readdir (fd, name[0]), "readdir \".\"");

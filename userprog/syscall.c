@@ -167,8 +167,8 @@ static void syscall_handler (struct intr_frame *f UNUSED)
   case SYS_READDIR:
     check_pointer( (void *) (program + 1));
     check_pointer( (void *) (program + 2));
-    const char* dir_filename = program[1];
-    int fd7 = program[2];
+    const char* dir_filename = program[2];
+    int fd7 = program[1];
     f->eax = readdir(fd7, dir_filename);
     break;
 
@@ -198,26 +198,18 @@ static void syscall_handler (struct intr_frame *f UNUSED)
     const char* dir_ptr2 = program[1];
     f->eax = mkdir(dir_ptr2);
     break;
-  
-  // case SYS_READDIR:
-  //   check_pointer( (void *) (program + 1));
-  //   check_pointer( (void *) (program + 2));
-  //   const char* dir_filename = program[1];
-  //   int fd7 = program[2];
-  //   f->eax = readdir(fd7, dir_filename);
-  //   break;
 
-  // case SYS_ISDIR:
-  //   check_pointer( (void *) (program + 1));
-  //   int fd8 = program[1];
-  //   f->eax = isdir(fd8);
-  //   break;
+  case SYS_ISDIR:
+    check_pointer( (void *) (program + 1));
+    int fd8 = program[1];
+    f->eax = isdir(fd8);
+    break;
   
-  // case SYS_INUMBER:
-  //   check_pointer( (void *) (program + 1));
-  //   int fd9 = program[1];
-  //   f->eax = inumber(fd9);
-  //   break;
+  case SYS_INUMBER:
+    check_pointer( (void *) (program + 1));
+    int fd9 = program[1];
+    f->eax = inumber(fd9);
+    break;
 
   default:
     break;
@@ -314,10 +306,10 @@ int open(const char *file /*, struct dir* directory*/) {
     lock_release(&filesys_lock);
     return -1;
   }
-  
   thread_current()->fd_val = fd + 1;
   if(thread_current()->fd_val == 128){
-    thread_current()->fd_val = 0;
+    //0 and 1 are reserved
+    thread_current()->fd_val = 2;
   }
   thread_current()->fd_list[fd] = open_file;
   lock_release(&filesys_lock);
@@ -811,8 +803,8 @@ bool readdir(int fd, char *name) {
 
   bool continue_readdir = dir_readdir(curr_dir, name);
   while(continue_readdir == true){
-    if((strcmp(name, ".") != 0) &&  strcmp(name, "..") != 0){
-      continue_readdir = false;
+    if((strcmp(name, ".") != 0) && strcmp(name, "..") != 0){
+      break;
     }
     else{
       continue_readdir =  dir_readdir(curr_dir, name);

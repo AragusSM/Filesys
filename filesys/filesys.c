@@ -31,7 +31,7 @@ void save_dir (const char* name, char* dir_path);
 struct dir* open_dir_rte_abs (const char* rte_abs_path) {
   int path_len = strlen (rte_abs_path);
   if(path_len == 0){
-    return thread_current()->curr_dir ? thread_current()->curr_dir : dir_open_root();
+    return thread_current()->curr_dir ? dir_reopen(thread_current()->curr_dir) : dir_open_root();
   }
   char *rte_abs_copy = calloc(1, (path_len + 1));
   if (! rte_abs_copy)
@@ -192,7 +192,6 @@ bool filesys_create (const char *name, off_t initial_size)
   bool success = (dir != NULL && free_map_allocate (1, &inode_sector) &&
                   inode_create (inode_sector, initial_size, false) &&
                   dir_add (dir, file_path, inode_sector));
-  
   
   if (!success && inode_sector != 0)
     free_map_release (inode_sector, 1);
