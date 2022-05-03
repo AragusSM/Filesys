@@ -199,18 +199,6 @@ static void syscall_handler (struct intr_frame *f UNUSED)
     f->eax = mkdir(dir_ptr2);
     break;
 
-  case SYS_ISDIR:
-    check_pointer( (void *) (program + 1));
-    int fd8 = program[1];
-    f->eax = isdir(fd8);
-    break;
-  
-  case SYS_INUMBER:
-    check_pointer( (void *) (program + 1));
-    int fd9 = program[1];
-    f->eax = inumber(fd9);
-    break;
-
   default:
     break;
   }
