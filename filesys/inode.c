@@ -676,8 +676,9 @@ static bool grow_file(int original, off_t pos, struct inode *inode){
       block_sector_t direct[BLOCKS_PER_INDIRECT];
       block_read(fs_device, inode->data.sgl_indirect, direct);
       // indirect block should already be allocated
+      int max = num_dir_needed < num_left ? num_dir_needed : num_left;
       int start = (original + 1) - NUM_DIRECT;
-      for (int i = start; i <= start + num_left; i++)
+      for (int i = start; i <= start + max; i++)
       {
         // now allocate the direct blocks in the singly indirect
         if (! free_map_allocate(1, &direct[i]))
@@ -784,7 +785,7 @@ static bool grow_file(int original, off_t pos, struct inode *inode){
     }
   }else{
     //if the next block we need to allocate is the first dbl-indirect block allocate the pointer
-    if(original + 1 == NUM_DIRECT){
+    if(original + 1 == NUM_DIRECT + BLOCKS_PER_INDIRECT){
       if (free_map_allocate(1, &inode->data.dbl_indirect)) {
         char* zeros = calloc(1, BLOCK_SECTOR_SIZE);
         block_write(fs_device, inode->data.dbl_indirect, zeros);
@@ -864,7 +865,6 @@ off_t inode_write_at(struct inode *inode, const void *buffer_, off_t size,
   const uint8_t *buffer = buffer_;
   off_t bytes_written = 0;
   uint8_t *bounce = NULL;
-
   if (inode->deny_write_cnt)
     return 0;
   
