@@ -433,7 +433,9 @@ void exit(int status){
   if (!lock_held_by_current_thread(&filesys_lock)) {
     lock_acquire(&filesys_lock);
   }
-  file_allow_write(thread_current()->curr_file);
+  if(thread_current()->curr_file){
+    file_allow_write(thread_current()->curr_file);
+  }
   lock_release(&filesys_lock);
   thread_exit();
 }
@@ -541,6 +543,10 @@ int write(int fd, const void *buffer, unsigned size) {
   }
 
   if(curr_file != NULL){
+      if(inode_is_subdir(file_get_inode(curr_file))){
+        lock_release(&filesys_lock);
+        return -1;
+      }
       bytes_written = (int) file_write(curr_file, buffer, size);
       lock_release(&filesys_lock);
       return bytes_written;
@@ -653,22 +659,22 @@ bool remove (const char *file){
   Changes the current working directory of the process to dir, which may be 
   relative or absolute. Returns true if successful, false on failure. 
 */
-bool chdir(const char* dir) {
+bool chdir(const char* dir) { 
   if (!dir || strlen(dir) == 0)
   {
     return false;
   }
-  block_sector_t *inode = NULL;
-  if(thread_current()->curr_dir){
-    if(!dir_lookup(thread_current()->curr_dir, dir, &inode)){
-      return false;
-    }
-  }else{
-    if(!dir_lookup(dir_open_root(), dir, &inode)){
+  if(!thread_current()->curr_dir || (dir_get_inode(thread_current()->curr_dir)) == ROOT_DIR_SECTOR){
+    if(!strcmp(dir, "/") || !strcmp(dir, "..") || !strcmp(dir, ".")){
       return false;
     }
   }
-  thread_current()->curr_dir = dir_open(inode);
+  struct dir *directory = open_dir_rte_abs(dir);
+  if(!directory){
+    return false;
+  }
+  dir_close(thread_current()->curr_dir);
+  thread_current()->curr_dir = directory;
   return true;
 }
 
@@ -686,8 +692,10 @@ bool mkdir(const char* dir) {
   struct dir *target = open_dir_rte_abs(dir);
   if(target){
     //directory exists
+    dir_close(target);
     return false;
   }
+  dir_close(target);
   //check that the previous directory exists
   int index = strlen(dir) - 1;
   while(index >= 0 && dir[index] != '/'){
@@ -705,10 +713,33 @@ bool mkdir(const char* dir) {
       if(!dir_add(thread_current()->curr_dir, name, new_dir)){
         return false;
       }
+      struct inode *inode = NULL;
+      if(!dir_lookup(thread_current()->curr_dir, name, &inode)){
+        inode_close(inode);
+        return false;
+      }
+      struct dir *child = dir_open(inode);
+      if(!dir_add(child, ".", new_dir) || !dir_add(child, "..", 
+        inode_get_inumber(dir_get_inode(thread_current()->curr_dir)))){
+           dir_close(child);
+           return false;
+      }
+      dir_close(child);
     }else{
       if(!dir_add(dir_open_root(), name, new_dir)){
         return false;
       }
+      struct inode *inode = NULL;
+      if(!dir_lookup(dir_open_root(), name, &inode)){
+        inode_close(inode);
+        return false;
+      }
+      struct dir *child = dir_open(inode);
+      if(!dir_add(child, ".", new_dir) || !dir_add(child, "..", ROOT_DIR_SECTOR)){
+           dir_close(child);
+           return false;
+      }
+      dir_close(child);
     }
     return true;
   }
@@ -730,6 +761,17 @@ bool mkdir(const char* dir) {
   if(!dir_add(target, dir + index, new_dir)){
     return false;
   }
+      struct inode *inode = NULL;
+      if(!dir_lookup(target, dir + index, &inode)){
+        inode_close(inode);
+        return false;
+      }
+      struct dir *child = dir_open(inode);  
+      if(!dir_add(child, ".", new_dir) || !dir_add(child, "..", inode_get_inumber(dir_get_inode(target)))){
+           dir_close(child);
+           return false;
+      }
+  dir_close(child);
   return true;
 }
 /*
@@ -762,7 +804,7 @@ bool readdir(int fd, char *name) {
     return false;
   }
   //need to check if is subdir
-  bool sub_d = is_subdir(curr_inode);
+  bool sub_d = inode_is_subdir(curr_inode);
   if(!sub_d){
     return false;
   }
@@ -790,7 +832,7 @@ bool isdir(int fd) {
     return -1;
   }
   struct inode * inode = file_get_inode(curr_file);
-  bool is_dir = is_subdir(inode);
+  bool is_dir = inode_is_subdir(inode);
   return is_dir;
 }
 

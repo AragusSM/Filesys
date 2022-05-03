@@ -96,13 +96,13 @@ struct inode *dir_get_inode (struct dir *dir) { return dir->inode; }
 static bool lookup (const struct dir *dir, const char *name,
                     struct dir_entry *ep, off_t *ofsp)
 {
+  
   struct dir_entry e;
   size_t ofs;
 
   ASSERT (dir != NULL);
   ASSERT (name != NULL);
   // Given code
- 
   for (ofs = 0; inode_read_at (dir->inode, &e, sizeof e, ofs) == sizeof e;
        ofs += sizeof e)
     if (e.in_use && !strcmp (name, e.name))
@@ -113,6 +113,7 @@ static bool lookup (const struct dir *dir, const char *name,
           *ofsp = ofs;
         return true;
       }
+      
   return false;
 }
 
@@ -171,13 +172,12 @@ bool dir_add (struct dir *dir, const char *name, block_sector_t inode_sector)
        ofs += sizeof e)
     if (!e.in_use)
       break;
-
+  
   /* Write slot. */
   e.in_use = true;
   strlcpy (e.name, name, sizeof e.name);
   e.inode_sector = inode_sector;
   success = inode_write_at (dir->inode, &e, sizeof e, ofs) == sizeof e;
-
 done:
   return success;
 }
@@ -187,6 +187,8 @@ done:
    which occurs only if there is no file with the given NAME. */
 bool dir_remove (struct dir *dir, const char *name)
 {
+  //printf("%i\n",inode_get_inumber(dir_get_inode(dir)));
+  //printf("%s\n", name);
   struct dir_entry e;
   struct inode *inode = NULL;
   bool success = false;
@@ -204,9 +206,20 @@ bool dir_remove (struct dir *dir, const char *name)
   if (inode == NULL)
     goto done;
 
+  
+
   //ADDED THIS
-  if (is_subdir(inode))
+  if (inode_is_subdir(inode))
   {
+    
+    if(inode_is_open(inode)){
+      goto done;
+    }
+    if(thread_current()->curr_dir && 
+       e.inode_sector == inode_get_inumber(dir_get_inode(thread_current()->curr_dir))){
+      goto done;
+    }
+    
     struct dir_entry dir_ent;
     struct dir * open_dir = dir_open (inode);
     bool found = false;
@@ -214,7 +227,7 @@ bool dir_remove (struct dir *dir, const char *name)
     int num_period = 2;
     off_t offset = (sizeof dir_ent) * num_period;
     
-    while(inode_read_at (dir->inode, &dir_ent, sizeof dir_ent, offset) == sizeof dir_ent && !found){
+    while(inode_read_at (open_dir->inode, &dir_ent, sizeof dir_ent, offset) == sizeof dir_ent && !found){
       bool in_use = dir_ent.in_use;
       if(in_use == true){
         empty_dir = false;
@@ -222,14 +235,12 @@ bool dir_remove (struct dir *dir, const char *name)
       }
       offset += sizeof dir_ent;
     }
-
     dir_close (open_dir);
     if (empty_dir == false){
        goto done;
     }
   }
   
-
   /* Erase directory entry. */
   e.in_use = false;
   if (inode_write_at (dir->inode, &e, sizeof e, ofs) != sizeof e)

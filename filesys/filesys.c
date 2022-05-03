@@ -49,6 +49,10 @@ struct dir* open_dir_rte_abs (const char* rte_abs_path) {
   char* save_ptr = NULL;
   char* token = strtok_r (rte_abs_copy, "/", &save_ptr);
   while (token != NULL) {
+    if(strcmp(token, ".") == 0){
+      token = strtok_r (NULL, "/", &save_ptr);
+      continue;
+    }
     // Set the next node while we are at it.
     struct inode *i_next = NULL;
     // Lookup failed
@@ -57,6 +61,7 @@ struct dir* open_dir_rte_abs (const char* rte_abs_path) {
       free (rte_abs_copy);
       return NULL;
     }
+    //printf("%i\n", inode_get_inumber(i_next));
     struct dir* d_next = dir_open(i_next);
     if (! d_next) {
       // Open inode failed
@@ -86,7 +91,7 @@ struct dir* open_dir_rte_abs (const char* rte_abs_path) {
 // Saves the file into the file_path by parsing through
 // the name of the file.
 void save_file(const char* name, char* file_path) {
-  int path_len = strlen(file_path);
+  int path_len = strlen(name);
   // Make a new copy to prevent corruption
   char* fpath_copy = calloc(1, (path_len + 1));
   if (! fpath_copy)
@@ -110,7 +115,7 @@ void save_file(const char* name, char* file_path) {
 
 // Helper method to save tokens in dir_path
 void save_dir (const char* name, char* dir_path) {
-  int path_len = strlen(dir_path);
+  int path_len = strlen(name);
   char* dpath_copy = calloc(1, (path_len + 1));
   if (! dpath_copy)
     return NULL;
@@ -181,21 +186,23 @@ bool filesys_create (const char *name, off_t initial_size)
     index--;
   }
   index++;
-  strlcpy(dir_path, name, index);
+  strlcpy(dir_path, name, index + 1);
   strlcpy(file_path, name + index, (name_length + 1) - index);
   struct dir *dir = open_dir_rte_abs(dir_path);
   bool success = (dir != NULL && free_map_allocate (1, &inode_sector) &&
                   inode_create (inode_sector, initial_size, false) &&
                   dir_add (dir, file_path, inode_sector));
+  
+  
   if (!success && inode_sector != 0)
     free_map_release (inode_sector, 1);
-  dir_close (dir);
-
+  dir_close(dir);
   // Freeing dynamically allocated memory.
   free(file_path);
   free(dir_path);
   return success;
 }
+
 
 /* Opens the file with the given NAME.
    Returns the new file if successful or a null pointer
@@ -205,11 +212,12 @@ bool filesys_create (const char *name, off_t initial_size)
 struct file *filesys_open (const char *name)
 {
   struct dir *dir = NULL;
-  /*if(thread_current()->curr_dir){
-    dir = thread_current()->curr_dir;
-  }else{
-    dir = dir_open_root ();
-  }*/
+  dir = open_dir_rte_abs(name);
+  if(dir && inode_is_subdir(dir_get_inode(dir))){
+    struct file* file = file_open(dir_get_inode(dir));
+    return file;
+  }
+  
   struct inode *inode = NULL;
   int name_length = strlen(name);
   int index = strlen(name) - 1;
@@ -219,7 +227,7 @@ struct file *filesys_open (const char *name)
   index++;
   char* dir_path = calloc(1, name_length + 1);
   char* file_path = calloc(1, name_length + 1);
-  strlcpy(dir_path, name, index);
+  strlcpy(dir_path, name, index + 1);
   strlcpy(file_path, name + index, (name_length + 1) - index);
   dir = (open_dir_rte_abs(dir_path));
   free(dir_path);
@@ -236,10 +244,19 @@ struct file *filesys_open (const char *name)
    or if an internal memory allocation fails. */
 bool filesys_remove (const char *name)
 {
-  struct dir *dir = dir_open_root ();
-  bool success = dir != NULL && dir_remove (dir, name);
+  int name_length = strlen(name);
+  int index = strlen(name) - 1;
+  while(index >= 0 && name[index] != '/'){
+    index--;
+  }
+  index++;
+  char* dir_path = calloc(1, name_length + 1);
+  char* file_path = calloc(1, name_length + 1);
+  strlcpy(dir_path, name, index + 1);
+  strlcpy(file_path, name + index, (name_length + 1) - index);
+  struct dir *dir = open_dir_rte_abs(dir_path);
+  bool success = dir != NULL && dir_remove (dir, file_path);
   dir_close (dir);
-
   return success;
 }
 

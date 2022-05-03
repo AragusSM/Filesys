@@ -54,8 +54,12 @@ struct inode
   struct inode_disk data; /* Inode content. */
 };
 
+bool inode_is_open(const struct inode *inode){
+  //magic number 4 mwhaha
+  return inode->open_cnt > 4;
+}
 
-bool is_subdir (const struct inode *inode)
+bool inode_is_subdir (const struct inode *inode)
 {  
   bool is_sub_d = (bool) inode->data.is_sub_directory;
   return is_sub_d;
@@ -419,7 +423,6 @@ off_t inode_read_at(struct inode *inode, void *buffer_, off_t size,
   {
     /* Disk sector to read, starting byte offset within sector. */
     block_sector_t sector_idx = byte_to_sector(inode, offset);
-    
     int sector_ofs = offset % BLOCK_SECTOR_SIZE;
 
     /* Bytes left in inode, bytes left in sector, lesser of the two. */
