@@ -379,7 +379,6 @@ void inode_close(struct inode *inode)
   /* Ignore null pointer. */
   if (inode == NULL)
     return;
-
   /* Release resources if this was the last opener. */
   if (--inode->open_cnt == 0)
   {
@@ -390,8 +389,9 @@ void inode_close(struct inode *inode)
     if (inode->removed)
     {
       free_map_release(inode->sector, 1);
-      free_map_release(inode->data.direct[0],
-                       bytes_to_sectors(inode->data.length));
+      for(int i = 0; i < inode->data.length; i += BLOCK_SECTOR_SIZE){
+        free_map_release(byte_to_sector(inode, i), 1);
+      }
     }
 
     free(inode);

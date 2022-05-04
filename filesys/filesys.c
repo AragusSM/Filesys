@@ -192,7 +192,6 @@ bool filesys_create (const char *name, off_t initial_size)
   bool success = (dir != NULL && free_map_allocate (1, &inode_sector) &&
                   inode_create (inode_sector, initial_size, false) &&
                   dir_add (dir, file_path, inode_sector));
-  
   if (!success && inode_sector != 0)
     free_map_release (inode_sector, 1);
   dir_close(dir);
@@ -216,7 +215,7 @@ struct file *filesys_open (const char *name)
     struct file* file = file_open(dir_get_inode(dir));
     return file;
   }
-  
+  dir_close(dir);
   struct inode *inode = NULL;
   int name_length = strlen(name);
   int index = strlen(name) - 1;
