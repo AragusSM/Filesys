@@ -10,12 +10,15 @@
 #include "threads/synch.h"
 #include "threads/thread.h"
 
+
+
 /* A directory. */
 struct dir
 {
   struct inode *inode; /* Backing store. */
   off_t pos;           /* Current position. */
   bool is_empty; /* Tells us if this directory can be removed, else it cannot be. */
+  struct lock dir_lock; //local lock per directory to synchro
   // Modified for filesys
   // struct lock pd_re_wr_lock; /* Per dir lock to solve readers/writers. */
 };
@@ -42,13 +45,13 @@ bool dir_create (block_sector_t sector, size_t entry_cnt)
    it takes ownership.  Returns a null pointer on failure. */
 struct dir *dir_open (struct inode *inode)
 {
+  
   struct dir *dir = calloc (1, sizeof *dir);
   if (inode != NULL && dir != NULL)
     {
       dir->inode = inode;
       dir->pos = 0;
-      // Init pd lock
-      // lock_init(&dir->pd_re_wr_lock);
+      lock_init(&dir->dir_lock);
       return dir;
     }
   else
@@ -152,10 +155,17 @@ bool dir_add (struct dir *dir, const char *name, block_sector_t inode_sector)
 
   ASSERT (dir != NULL);
   ASSERT (name != NULL);
+  if(!lock_held_by_current_thread (&dir->dir_lock)){
+    lock_acquire(&dir->dir_lock);
+  } 
 
   /* Check NAME for validity. */
-  if (*name == '\0' || strlen (name) > NAME_MAX)
+  if (*name == '\0' || strlen (name) > NAME_MAX){
+    if(lock_held_by_current_thread (&dir->dir_lock)){
+      lock_release(&dir->dir_lock);
+    } 
     return false;
+  }
 
   /* Check that NAME is not in use. */
   if (lookup (dir, name, NULL, NULL))
@@ -169,9 +179,14 @@ bool dir_add (struct dir *dir, const char *name, block_sector_t inode_sector)
      Otherwise, we'd need to verify that we didn't get a short
      read due to something intermittent such as low memory. */
   for (ofs = 0; inode_read_at (dir->inode, &e, sizeof e, ofs) == sizeof e;
-       ofs += sizeof e)
-    if (!e.in_use)
+       ofs += sizeof e){
+    if (!e.in_use){
+      if(lock_held_by_current_thread (&dir->dir_lock)){
+        lock_release(&dir->dir_lock);
+      } 
       break;
+    }
+  }
   
   /* Write slot. */
   e.in_use = true;
@@ -179,6 +194,9 @@ bool dir_add (struct dir *dir, const char *name, block_sector_t inode_sector)
   e.inode_sector = inode_sector;
   success = inode_write_at (dir->inode, &e, sizeof e, ofs) == sizeof e;
 done:
+ if(lock_held_by_current_thread (&dir->dir_lock)){
+    lock_release(&dir->dir_lock);
+  } 
   return success;
 }
 
@@ -187,8 +205,6 @@ done:
    which occurs only if there is no file with the given NAME. */
 bool dir_remove (struct dir *dir, const char *name)
 {
-  //printf("%i\n",inode_get_inumber(dir_get_inode(dir)));
-  //printf("%s\n", name);
   struct dir_entry e;
   struct inode *inode = NULL;
   bool success = false;
@@ -196,6 +212,10 @@ bool dir_remove (struct dir *dir, const char *name)
 
   ASSERT (dir != NULL);
   ASSERT (name != NULL);
+
+  if(!lock_held_by_current_thread (&dir->dir_lock)){
+    lock_acquire(&dir->dir_lock);
+  } 
 
   /* Find directory entry. */
   if (!lookup (dir, name, &e, &ofs))
@@ -251,6 +271,9 @@ bool dir_remove (struct dir *dir, const char *name)
   success = true;
 
 done:
+ if(lock_held_by_current_thread (&dir->dir_lock)){
+      lock_release(&dir->dir_lock);
+    } 
   inode_close (inode);
   return success;
 }
@@ -261,6 +284,7 @@ done:
 bool dir_readdir (struct dir *dir, char name[NAME_MAX + 1])
 {
   struct dir_entry e;
+
   while (inode_read_at (dir->inode, &e, sizeof e, dir->pos) == sizeof e)
     {
       dir->pos += sizeof e;
@@ -270,5 +294,6 @@ bool dir_readdir (struct dir *dir, char name[NAME_MAX + 1])
           return true;
         }
     }
+ 
   return false;
 }
