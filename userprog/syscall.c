@@ -263,6 +263,15 @@ static bool valid_fd(int fd){
   return false;
 }
 
+//helper to find open fd or null file
+int get_fd(){
+  for(int i = 2; i < 128; i++){
+    if(!thread_current()->fd_list[i]){
+      return i;
+    }
+  }
+  return -1;
+}
 
 // Driver: Joel
 /* Opens the file called file. Returns a nonnegative integer handle called a 
@@ -288,16 +297,19 @@ int open(const char *file /*, struct dir* directory*/) {
   }
   // Changed fd from -1 to fd_val, and made the open_file check
   // After.
-  int fd = thread_current()->fd_val;
+  int fd = get_fd();
   struct file *open_file = filesys_open(file);
   if (open_file == NULL) {
     lock_release(&filesys_lock);
     return -1;
   }
-  thread_current()->fd_val = fd + 1;
-  if(thread_current()->fd_val == 128){
-    //0 and 1 are reserved
-    thread_current()->fd_val = 2;
+  if(fd == -1){
+    close(thread_current()->fd_val);
+    thread_current()->fd_val++;
+    if(thread_current()->fd_val == 128){
+      //0 and 1 are reserved
+      thread_current()->fd_val = 2;
+    }
   }
   thread_current()->fd_list[fd] = open_file;
   lock_release(&filesys_lock);
