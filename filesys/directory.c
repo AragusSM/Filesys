@@ -16,7 +16,7 @@ struct dir
   struct inode *inode; /* Backing store. */
   off_t pos;           /* Current position. */
   bool is_empty; /* Tells us if this directory can be removed, else it cannot be. */
-  struct lock dir_lock; //local lock per directory to synchro
+  struct lock dir_lock; //local lock per directory to synch
 };
 
 /* A single directory entry. */
@@ -25,6 +25,8 @@ struct dir_entry
   block_sector_t inode_sector; /* Sector number of header. */
   char name[NAME_MAX + 1];     /* Null terminated file name. */
   bool in_use;                 /* In use or free? */
+  bool already_removed; /* Ensures that if remove has been called 
+                          we do not remove the same dir ent again */
 };
 
 /* Creates a directory with space for ENTRY_CNT entries in the
@@ -204,7 +206,7 @@ bool dir_remove (struct dir *dir, const char *name)
 
   ASSERT (dir != NULL);
   ASSERT (name != NULL);
-
+  
   if(!lock_held_by_current_thread (&dir->dir_lock)){
     lock_acquire(&dir->dir_lock);
   } 
@@ -251,10 +253,16 @@ bool dir_remove (struct dir *dir, const char *name)
     if (empty_dir == false){
        goto done;
     }
+
   }
   
   /* Erase directory entry. */
   e.in_use = false;
+  //don't erase if remove has already been called
+  if(e.already_removed == true){
+    goto done;
+  }
+  e.already_removed = true;
   if (inode_write_at (dir->inode, &e, sizeof e, ofs) != sizeof e)
     goto done;
 
