@@ -49,16 +49,24 @@ struct inode
   block_sector_t sector;  /* Sector number of disk location. */
   int open_cnt;           /* Number of openers. */
   bool removed;           /* True if deleted, false otherwise. */
-  int deny_write_cnt;     /* 0: writes ok, >0: deny writes. */
+  int write_counter;     /* 0: writes ok, >0: deny writes. */
   struct inode_disk data; /* Inode content. */
   struct lock filegrow_lock; /* lock per inode*/
 };
 
+//Helper method to check if a passed in
+//inode as a parameter is open
+//returns true if it is, false otherwise
+//Driver: Michael
 bool inode_is_open(const struct inode *inode){
   //magic number 4 mwhaha
   return inode->open_cnt > 4;
 }
 
+//Helper method for system calls
+//Takes in an inode and returns if the inode
+//is a subdirectory or not
+//Driver: Ashley
 bool inode_is_subdir (const struct inode *inode)
 {  
   bool is_sub_d = (bool) inode->data.is_sub_directory;
@@ -71,6 +79,7 @@ bool map_inode_to_sect(block_sector_t sector, struct inode_disk *in_disk);
    within INODE.
    Returns -1 if INODE does not contain data for a byte at offset
    POS. */
+//Driver: Ashley
 static block_sector_t byte_to_sector(const struct inode *inode, off_t pos)
 {
   ASSERT(inode != NULL);
@@ -345,7 +354,7 @@ struct inode *inode_open(block_sector_t sector)
   list_push_front(&open_inodes, &inode->elem);  
   inode->sector = sector;
   inode->open_cnt = 1;
-  inode->deny_write_cnt = 0;
+  inode->write_counter = 0;
   inode->removed = false;
   block_read(fs_device, inode->sector, &inode->data);
   return inode;
@@ -400,6 +409,9 @@ void inode_remove(struct inode *inode)
   inode->removed = true;
 }
 
+//Helper that returns true if
+//passed in inode as a parameter has been removed
+//Driver: Joel
 bool inode_removed(struct inode *inode){
   return inode->removed;
 }
@@ -472,7 +484,11 @@ int get_dir_index(off_t pos){
   return dir_index;
 }
 
-//grow file 
+//Function used to grow a file and calculate how many of each block type
+//Is needed.
+//Takes in int: original last sector num, offset to find how much to grow with
+//and the inode to grow
+//Driver: Ashley + Michael
 static bool grow_file(int original, off_t pos, struct inode *inode){
   //first find the last block
   block_sector_t num_dir_needed = pos / BLOCK_SECTOR_SIZE;
@@ -866,9 +882,10 @@ off_t inode_write_at(struct inode *inode, const void *buffer_, off_t size,
   const uint8_t *buffer = buffer_;
   off_t bytes_written = 0;
   uint8_t *bounce = NULL;
-  if (inode->deny_write_cnt)
+  if (inode->write_counter)
     return 0;
 
+  //Driver: Michael
   //grow file
   off_t eof = offset + size;
   off_t old_length = inode_length (inode);
@@ -883,6 +900,7 @@ off_t inode_write_at(struct inode *inode, const void *buffer_, off_t size,
 
     if(bytes_to_add >= 0){
       //must grow
+      //Driver: Ashley
       if(!lock_held_by_current_thread (&inode->filegrow_lock)){
         lock_acquire(&inode->filegrow_lock);
       } 
@@ -895,7 +913,6 @@ off_t inode_write_at(struct inode *inode, const void *buffer_, off_t size,
      } 
   }
 
-  //printf("%i\n", offset);
   while (size > 0)
   {
     /* Sector to write, starting byte offset within sector. */
@@ -953,8 +970,8 @@ off_t inode_write_at(struct inode *inode, const void *buffer_, off_t size,
    May be called at most once per inode opener. */
 void inode_deny_write(struct inode *inode)
 {
-  inode->deny_write_cnt++;
-  ASSERT(inode->deny_write_cnt <= inode->open_cnt);
+  inode->write_counter++;
+  ASSERT(inode->write_counter <= inode->open_cnt);
 }
 
 /* Re-enables writes to INODE.
@@ -962,9 +979,9 @@ void inode_deny_write(struct inode *inode)
    inode_deny_write() on the inode, before closing the inode. */
 void inode_allow_write(struct inode *inode)
 {
-  ASSERT(inode->deny_write_cnt > 0);
-  ASSERT(inode->deny_write_cnt <= inode->open_cnt);
-  inode->deny_write_cnt--;
+  ASSERT(inode->write_counter > 0);
+  ASSERT(inode->write_counter <= inode->open_cnt);
+  inode->write_counter--;
 }
 
 /* Returns the length, in bytes, of INODE's data. */

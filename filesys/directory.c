@@ -10,8 +10,6 @@
 #include "threads/synch.h"
 #include "threads/thread.h"
 
-
-
 /* A directory. */
 struct dir
 {
@@ -19,8 +17,6 @@ struct dir
   off_t pos;           /* Current position. */
   bool is_empty; /* Tells us if this directory can be removed, else it cannot be. */
   struct lock dir_lock; //local lock per directory to synchro
-  // Modified for filesys
-  // struct lock pd_re_wr_lock; /* Per dir lock to solve readers/writers. */
 };
 
 /* A single directory entry. */
@@ -29,9 +25,6 @@ struct dir_entry
   block_sector_t inode_sector; /* Sector number of header. */
   char name[NAME_MAX + 1];     /* Null terminated file name. */
   bool in_use;                 /* In use or free? */
-  // Modified for filesys
-  // struct file* dir_file_ptr; /* Allows directory entry to point to other files. */
-  // struct dir* dir_ptr; /* Allows directory entry to point to other directories. */
 };
 
 /* Creates a directory with space for ENTRY_CNT entries in the
@@ -45,7 +38,7 @@ bool dir_create (block_sector_t sector, size_t entry_cnt)
    it takes ownership.  Returns a null pointer on failure. */
 struct dir *dir_open (struct inode *inode)
 {
-  
+   //Driver: Joel
   struct dir *dir = calloc (1, sizeof *dir);
   if (inode != NULL && dir != NULL)
     {
@@ -82,8 +75,6 @@ void dir_close (struct dir *dir)
   if (dir != NULL)
     {
       inode_close (dir->inode);
-      // Assumption - TODO check this.s
-      // free ((void *) &dir->pd_re_wr_lock);
       free (dir);
     }
 }
@@ -155,6 +146,7 @@ bool dir_add (struct dir *dir, const char *name, block_sector_t inode_sector)
 
   ASSERT (dir != NULL);
   ASSERT (name != NULL);
+  //Driver: Ashley
   if(!lock_held_by_current_thread (&dir->dir_lock)){
     lock_acquire(&dir->dir_lock);
   } 
@@ -226,9 +218,8 @@ bool dir_remove (struct dir *dir, const char *name)
   if (inode == NULL)
     goto done;
 
-  
 
-  //ADDED THIS
+  //Driver: Ashley
   if (inode_is_subdir(inode))
   {
     
@@ -246,8 +237,9 @@ bool dir_remove (struct dir *dir, const char *name)
     bool empty_dir = true;
     int num_period = 2;
     off_t offset = (sizeof dir_ent) * num_period;
-    
-    while(inode_read_at (open_dir->inode, &dir_ent, sizeof dir_ent, offset) == sizeof dir_ent && !found){
+    //Driver: Joel
+    while(inode_read_at 
+    (open_dir->inode, &dir_ent, sizeof dir_ent, offset) == sizeof dir_ent && !found){
       bool in_use = dir_ent.in_use;
       if(in_use == true){
         empty_dir = false;

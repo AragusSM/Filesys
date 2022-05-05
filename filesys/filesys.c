@@ -28,6 +28,7 @@ void save_file (const char* name, char* file_path);
 void save_dir (const char* name, char* dir_path);
 
 // Handles absolute and relative paths.
+// Driver: Joel
 struct dir* open_dir_rte_abs (const char* rte_abs_path) {
   int path_len = strlen (rte_abs_path);
   if(path_len == 0){
@@ -90,6 +91,7 @@ struct dir* open_dir_rte_abs (const char* rte_abs_path) {
 
 // Saves the file into the file_path by parsing through
 // the name of the file.
+//Driver:Joel
 void save_file(const char* name, char* file_path) {
   int path_len = strlen(name);
   // Make a new copy to prevent corruption
