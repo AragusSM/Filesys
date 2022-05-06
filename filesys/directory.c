@@ -15,8 +15,8 @@ struct dir
 {
   struct inode *inode; /* Backing store. */
   off_t pos;           /* Current position. */
-  bool is_empty; /* Tells us if this directory can be removed, else it cannot be. */
-  struct lock dir_lock; //local lock per directory to synchro
+  bool is_empty; /* If true, directory is removable, else it is not. */
+  struct lock dir_lock; /* Local lock per directory to synchronize */
 };
 
 /* A single directory entry. */
@@ -38,7 +38,7 @@ bool dir_create (block_sector_t sector, size_t entry_cnt)
    it takes ownership.  Returns a null pointer on failure. */
 struct dir *dir_open (struct inode *inode)
 {
-   //Driver: Joel
+   // Driver: Joel
   struct dir *dir = calloc (1, sizeof *dir);
   if (inode != NULL && dir != NULL)
     {
@@ -115,7 +115,8 @@ static bool lookup (const struct dir *dir, const char *name,
    and returns true if one exists, false otherwise.
    On success, sets *INODE to an inode for the file, otherwise to
    a null pointer.  The caller must close *INODE. */
-bool dir_lookup (const struct dir *dir, const char *name, struct inode **inode)
+bool dir_lookup (const struct dir *dir, const char *name,
+ struct inode **inode)
 {
   struct dir_entry e;
 
@@ -138,6 +139,7 @@ bool dir_lookup (const struct dir *dir, const char *name, struct inode **inode)
    Returns true if successful, false on failure.
    Fails if NAME is invalid (i.e. too long) or a disk or memory
    error occurs. */
+// Driver: All of Us
 bool dir_add (struct dir *dir, const char *name, block_sector_t inode_sector)
 {
   struct dir_entry e;
@@ -146,7 +148,7 @@ bool dir_add (struct dir *dir, const char *name, block_sector_t inode_sector)
 
   ASSERT (dir != NULL);
   ASSERT (name != NULL);
-  //Driver: Ashley
+  // Driver: Ashley
   if(!lock_held_by_current_thread (&dir->dir_lock)){
     lock_acquire(&dir->dir_lock);
   } 
@@ -195,6 +197,7 @@ done:
 /* Removes any entry for NAME in DIR.
    Returns true if successful, false on failure,
    which occurs only if there is no file with the given NAME. */
+// Driver: Ashley and Joel
 bool dir_remove (struct dir *dir, const char *name)
 {
   struct dir_entry e;
@@ -219,7 +222,7 @@ bool dir_remove (struct dir *dir, const char *name)
     goto done;
 
 
-  //Driver: Ashley
+  // Driver: Ashley
   if (inode_is_subdir(inode))
   {
     
@@ -227,7 +230,8 @@ bool dir_remove (struct dir *dir, const char *name)
       goto done;
     }
     if(thread_current()->curr_dir && 
-       e.inode_sector == inode_get_inumber(dir_get_inode(thread_current()->curr_dir))){
+       e.inode_sector == inode_get_inumber(
+         dir_get_inode(thread_current()->curr_dir))){
       goto done;
     }
     
@@ -237,9 +241,10 @@ bool dir_remove (struct dir *dir, const char *name)
     bool empty_dir = true;
     int num_period = 2;
     off_t offset = (sizeof dir_ent) * num_period;
-    //Driver: Joel
+    // Driver: Joel
     while(inode_read_at 
-    (open_dir->inode, &dir_ent, sizeof dir_ent, offset) == sizeof dir_ent && !found){
+    (open_dir->inode, &dir_ent, sizeof dir_ent, offset) == sizeof dir_ent &&
+     !found){
       bool in_use = dir_ent.in_use;
       if(in_use == true){
         empty_dir = false;

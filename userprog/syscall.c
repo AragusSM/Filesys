@@ -164,6 +164,8 @@ static void syscall_handler (struct intr_frame *f UNUSED)
     close(fd6);
     break;
 
+  /* Filesys System Call Cases
+     Driver: Joel and Ashley */
   case SYS_READDIR:
     check_pointer( (void *) (program + 1));
     check_pointer( (void *) (program + 2));
@@ -263,11 +265,12 @@ static bool valid_fd(int fd){
   return false;
 }
 
-//helper to find open fd or null file
+// Helper to find open fd or null file
+// Driver: Michael
 int get_fd(){
-  for(int i = 2; i < 128; i++){
-    if(!thread_current()->fd_list[i]){
-      return i;
+  for(int fd_idx = MIN_FD_VAL; fd_idx < MAX_FD_VAL; fd_idx++){
+    if(!thread_current()->fd_list[fd_idx]){
+      return fd_idx;
     }
   }
   return -1;
@@ -295,8 +298,7 @@ int open(const char *file /*, struct dir* directory*/) {
     lock_release(&filesys_lock);
     return -1;
   }
-  // Changed fd from -1 to fd_val, and made the open_file check
-  // After.
+  // Changed fd from -1 to fd_val, and made the open_file check after.
   int fd = get_fd();
   struct file *open_file = filesys_open(file);
   if (open_file == NULL) {
@@ -306,9 +308,9 @@ int open(const char *file /*, struct dir* directory*/) {
   if(fd == -1){
     close(thread_current()->fd_val);
     thread_current()->fd_val++;
-    if(thread_current()->fd_val == 128){
-      //0 and 1 are reserved
-      thread_current()->fd_val = 2;
+    if(thread_current()->fd_val == MAX_FD_VAL){
+      // 0 and 1 are reserved for READ and WRITE
+      thread_current()->fd_val = MIN_FD_VAL;
     }
   }
   thread_current()->fd_list[fd] = open_file;
@@ -644,8 +646,7 @@ bool remove (const char *file){
   return removed;
 }
 
-/* Comment headers are from Pintos Guide 5.3.3 */
-
+/* Comment headers from Pintos Guide 5.3.3 */
 /*
   Driver: All of Us 
   Changes the current working directory of the process to dir, which may be 
@@ -656,12 +657,13 @@ bool chdir(const char* dir) {
   {
     return false;
   }
-  if(!thread_current()->curr_dir || (dir_get_inode(thread_current()->curr_dir)) == ROOT_DIR_SECTOR){
+  if(!thread_current()->curr_dir
+   || (dir_get_inode(thread_current()->curr_dir)) == ROOT_DIR_SECTOR){
     if(!strcmp(dir, "/") || !strcmp(dir, "..") || !strcmp(dir, ".")){
       return false;
     }
   }
-  struct dir *directory = open_dir_rte_abs(dir);
+  struct dir *directory = handle_rel_abs_dir(dir);
   if(!directory){
     return false;
   }
@@ -677,27 +679,29 @@ bool chdir(const char* dir) {
   That is, mkdir("/a/b/c") succeeds only if "/a/b" already exists and 
   "/a/b/c" does not. 
 */
+// Driver: Michael and Joel
 bool mkdir(const char* dir) {
   if(strlen(dir) == 0){
     return false;
   }
-  struct dir *target = open_dir_rte_abs(dir);
+  struct dir *target = handle_rel_abs_dir(dir);
   if(target){
-    //directory exists
+    // Directory exists
     dir_close(target);
     return false;
   }
   dir_close(target);
-  //check that the previous directory exists
+  // Check that the previous directory exists
   int index = strlen(dir) - 1;
   while(index >= 0 && dir[index] != '/'){
     index--;
   }
   index++;
-  //just create the directory in root or thread's current directory
+  // Create the directory in root or thread's current directory
   if(index == 1 || index == 0){
     block_sector_t new_dir = 0;
-    if(!free_map_allocate (1, &new_dir) || !dir_create(new_dir, 16)){
+    if(!free_map_allocate (1, &new_dir)
+     || !dir_create(new_dir, DIR_CREATE_CNST)){
       return false;
     }
     char *name = index == 1 ? dir + 1 : dir;
@@ -727,7 +731,8 @@ bool mkdir(const char* dir) {
         return false;
       }
       struct dir *child = dir_open(inode);
-      if(!dir_add(child, ".", new_dir) || !dir_add(child, "..", ROOT_DIR_SECTOR)){
+      if(!dir_add(child, ".", new_dir)
+       || !dir_add(child, "..", ROOT_DIR_SECTOR)){
            dir_close(child);
            return false;
       }
@@ -736,18 +741,19 @@ bool mkdir(const char* dir) {
     return true;
   }
   
-  //else need to check it exists
+  // Otherwise check that the target directory exists
   char *prev_name = calloc(1, strlen(dir) + 1);
   strlcpy(prev_name, dir, index);
-  target = open_dir_rte_abs(prev_name);
+  target = handle_rel_abs_dir(prev_name);
   free(prev_name);
   if(!target){
-    //directory does not exist
+    // Directory does not exist
     return false;
   }
-  //allocate into target
+  // Allocate into target
   block_sector_t new_dir = 0;
-  if(!free_map_allocate (1, &new_dir) || !dir_create(new_dir, 16)){
+  if(!free_map_allocate (1, &new_dir)
+   || !dir_create(new_dir, DIR_CREATE_CNST)){
     return false;
   }
   if(!dir_add(target, dir + index, new_dir)){
@@ -759,7 +765,8 @@ bool mkdir(const char* dir) {
         return false;
       }
       struct dir *child = dir_open(inode);  
-      if(!dir_add(child, ".", new_dir) || !dir_add(child, "..", inode_get_inumber(dir_get_inode(target)))){
+      if(!dir_add(child, ".", new_dir)
+       || !dir_add(child, "..", inode_get_inumber(dir_get_inode(target)))){
            dir_close(child);
            return false;
       }
@@ -782,26 +789,28 @@ bool mkdir(const char* dir) {
   supports longer file names than the basic file system, you should increase 
   this value from the default of 14.
 */
+// Driver: Ashley
 bool readdir(int fd, char *name) {
   struct file * curr_file = thread_current()->fd_list[fd];
-   //error checking
+   // Error checking
   if(curr_file == NULL){
     return false;
   }
 
   struct dir * curr_dir = (struct dir *) curr_file;
   struct inode *curr_inode = dir_get_inode(curr_dir);
-  //error checking
+  // Error checking
   if(curr_inode == NULL){
     return false;
   }
-  //need to check if is subdir
+  // Need to check if is subdir
   bool sub_d = inode_is_subdir(curr_inode);
   if(!sub_d){
     return false;
   }
 
   bool continue_readdir = dir_readdir(curr_dir, name);
+  // Special cases "." directory, and ".." directory.
   while(continue_readdir == true){
     if((strcmp(name, ".") != 0) && strcmp(name, "..") != 0){
       break;
@@ -817,9 +826,10 @@ bool readdir(int fd, char *name) {
   Returns true if fd represents a directory, false if 
   it represents an ordinary file. 
 */
+// Driver: Ashley
 bool isdir(int fd) {
   struct file * curr_file = thread_current()->fd_list[fd];
-  //error checking
+  // Error checking
   if(curr_file == NULL){
     return -1;
   }
@@ -836,14 +846,15 @@ bool isdir(int fd) {
   unique during the file's existence. In Pintos, the sector number of 
   the inode is suitable for use as an inode number.
 */
+// Driver: Joel
 int inumber(int fd) {
   struct file * curr_file = thread_current()->fd_list[fd];
-  //error checking
+  // Error checking
   if(curr_file == NULL){
     return -1;
   }
   struct inode * inode = file_get_inode(curr_file);
-  //error checking
+  // Error checking
   int inum = -1;
   if(inode == NULL){
     return inum;

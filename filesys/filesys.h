@@ -18,10 +18,6 @@ struct file *filesys_open (const char *name);
 bool filesys_remove (const char *name);
 
 // Helper Method Headers
-char* parse_file (const char* filepath);
-struct dir* parse_dir (const char* dirpath);
-struct dir* open_dir_rte_abs (const char* rte_abs_path);
-//void save_file (const char* name, char* file_path);
-//void save_dir (const char* name, char* dir_path);
+struct dir* handle_rel_abs_dir (const char* rel_abs_path);
 
 #endif /* filesys/filesys.h */

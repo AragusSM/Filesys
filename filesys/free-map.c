@@ -5,9 +5,10 @@
 #include "filesys/filesys.h"
 #include "filesys/inode.h"
 
-#define BLOCKS_PER_INDIRECT 128 //512/4
-#define NUM_DIRECT 120
-#define NUM_TOTAL 16632
+// Driver Michael and Joel
+#define BLOCKS_PER_INDIRECT 128 
+#define NUM_DIRECT 123
+#define NUM_TOTAL 16635
 
 static struct file *free_map_file; /* Free map file. */
 static struct bitmap *free_map;    /* Free map, one bit per sector. */

@@ -99,13 +99,12 @@ struct thread
   int priority;              /* Priority. */
   struct list_elem allelem;  /* List element for all threads list. */
   struct thread *parent;     /* parent thread for waiting */
-  
-  
 
   /* Shared between thread.c and synch.c. */
   struct list_elem elem; /* List element. */
 
-// For FILESYS
+  // Driver: Joel
+  // Filesys modification
   /* Current process directory */
   struct dir* curr_dir; 
 
